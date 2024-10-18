@@ -1,6 +1,6 @@
 @DocApi_HostAddress = http://localhost:5063
 
-GET {{DocApi_HostAddress}}/weatherforecast/
+GET {{DocApi_HostAddress}}/chats/1234/Document
 Accept: application/json
 
 ###

@@ -1,4 +1,5 @@
 ﻿using Domain;
+using Microsoft.AspNetCore.Http;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -10,7 +11,7 @@ namespace Infrastructure;
 
 public interface IDocumentStore
 {
-    Task<DocsPerThread> AddDocumentAsync(string userId, string document, string threadId, string folder);
+    Task<DocsPerThread> AddDocumentAsync(string userId, IFormFile document, string threadId, string folder);
     Task DeleteDocumentAsync(string documentName, string folder);
     Task<bool> DocumentExistsAsync(string documentName, string folder);
     Task<IEnumerable<string>> GetDocumentsAsync(string threadId, string folder);

@@ -21,7 +21,7 @@ var entry = new DocsPerThread
 {
     Deleted = false,
     DocumentName = "Brochure Elektrisch Rijden nieuw.pdf",
-    Id = "7642f262-b9e8-40c0-bbb0-97f3418eeb95",
+    Id = "f9ec7b4e-8ba7-4e12-a593-7c5fbbc52cc0",
     ThreadId = "1234",
     UserId = "1234"
 };
@@ -30,23 +30,34 @@ var entry = new DocsPerThread
 var searchClient = new SearchClient(new Uri(configuration["Search:Endpoint"]), configuration["Search:IndexName"], new AzureKeyCredential(configuration["Search:ApiKey"]));
 var searchIndexClient = new SearchIndexClient(new Uri(configuration["Search:Endpoint"]), new AzureKeyCredential(configuration["Search:ApiKey"]));
 var searchIndexerClient = new SearchIndexerClient(new Uri(configuration["Search:Endpoint"]), new AzureKeyCredential(configuration["Search:ApiKey"]));
-await searchIndexerClient.RunIndexerAsync(configuration["Search:IndexerName"]);
+//await searchIndexerClient.RunIndexerAsync(configuration["Search:IndexerName"]);
 
+string threadId = "1234";
 SearchOptions options = new SearchOptions();
-//options.Filter = $"title eq '{entry.DocumentName}'";
+// options.Filter = $"thread_id = '{threadId}'";
+options.Select.Add("chunk_id");
 options.Select.Add("title");
-options.Select.Add("id");
+options.Select.Add("file_name");
+options.Select.Add("document_id");
 
-var searchResponse = searchClient.Search<SearchDocument>("*", options);
-if (searchResponse.Value == null)
+SearchResults<SearchDocument> response = await searchClient.SearchAsync<SearchDocument>(null, options);
+int count = 0;
+await foreach (SearchResult<SearchDocument> result in response.GetResultsAsync())
 {
-    Console.WriteLine("No search results found");
+    if (entry.Id == result.Document["document_id"])
+    {
+        entry.AvailableInSearchIndex = true;
+    }
+    //Console.WriteLine($"Title: {result.Document["title"]}");
+    //Console.WriteLine($"Score: {result.Score}\n");
+    //Console.WriteLine($"Content: {result.Document["content"]}");
+    //Console.WriteLine($"Category: {result.Document["category"]}\n");
 }
-else
-{
-    Console.WriteLine("Search results found");
-}
+
 Console.Read();
+
+
+//Console.Read();
 
 //search_datasource = AzureSearchDatasource(self.env_helper)
 //            search_datasource.create_or_update_datasource()

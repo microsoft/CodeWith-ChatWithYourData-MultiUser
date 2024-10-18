@@ -9,6 +9,7 @@ namespace Infrastructure;
 
 public interface ISearchService
 {
-    Task<bool> IsChunkingComplete(DocsPerThread docsPerThread);
-    Task<bool> HasIndexingStarted(string threadId);
+    //Task<bool> IsChunkingComplete(string threadId);
+    Task<List<DocsPerThread>> IsChunkingComplete(List<DocsPerThread> docsPerThreads);
+    Task<bool> StartIndexing();
 }

@@ -2,6 +2,7 @@
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Domain;
+using Microsoft.AspNetCore.Http;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,15 +20,15 @@ namespace Infrastructure
             _blobServiceClient = client;
         }
 
-        public async Task<DocsPerThread> AddDocumentAsync(string userId, string document, string threadId, string folder)
+        public async Task<DocsPerThread> AddDocumentAsync(string userId, IFormFile document, string threadId, string folder)
         {
             var documentId = Guid.NewGuid().ToString();
             var blobContainerClient = _blobServiceClient.GetBlobContainerClient(folder);
-            var documentName = System.IO.Path.GetFileName(document);
+            var documentName = document.FileName;
             var blobClient = blobContainerClient.GetBlobClient(documentId);
 
             //Upload the document
-            await blobClient.UploadAsync(document, true);
+            await blobClient.UploadAsync(document.OpenReadStream());
 
             //set meta data
             var metadata = new Dictionary<string, string>
