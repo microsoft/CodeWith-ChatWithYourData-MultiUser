@@ -23,5 +23,8 @@ namespace Domain
         [JsonProperty(PropertyName = "content")]
         public required string Content { get; set; }
 
+        [JsonProperty(PropertyName = "created")]
+        public required DateTime Created { get; set; }
+
     }
 }

@@ -11,5 +11,7 @@ public interface ISearchService
 {
     //Task<bool> IsChunkingComplete(string threadId);
     Task<List<DocsPerThread>> IsChunkingComplete(List<DocsPerThread> docsPerThreads);
+    Task<DocsPerThread> IsChunkingComplete(DocsPerThread docsPerThreads);
     Task<bool> StartIndexing();
+    Task<bool> DeleteDocumentAsync(DocsPerThread document);
 }

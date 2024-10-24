@@ -48,7 +48,6 @@ namespace DocApi
                 clientBuilder.UseCredential(azureCredential);
             });
 
-            
             var cosmosConfig = builder.Configuration.GetSection("Cosmos");
             if (cosmosConfig != null)
             {

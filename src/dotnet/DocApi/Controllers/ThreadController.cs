@@ -88,7 +88,7 @@ namespace DocApi.Controllers
         {
             _logger.LogInformation("Deleting thread in CosmosDb for threadId : {0}", threadId);
 
-            bool result = await _threadRepository.DeleteThreadAsync(userId, threadId);
+            bool result = await _threadRepository.MarkThreadAsDeletedAsync(userId, threadId);
 
             if (result)
             {

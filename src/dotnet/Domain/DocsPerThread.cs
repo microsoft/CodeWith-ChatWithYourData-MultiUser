@@ -22,5 +22,8 @@ namespace Domain
 
         [JsonProperty(PropertyName = "availableInSearchIndex")]
         public bool AvailableInSearchIndex { get; set; } = false;
+
+        [JsonProperty(PropertyName = "chunkId")]
+        public string? ChunkId { get; set; }
     }
 }

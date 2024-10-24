@@ -13,7 +13,7 @@ using System.Xml.Linq;
 namespace DocApi.Controllers
 {
     [ApiController]
-    [Route("/chats/{threadId}/[controller]")]
+    [Route("/chats/{threadId}")]
     public class DocumentController : ControllerBase
     {
         private readonly IDocumentStore _documentStore;
@@ -41,7 +41,7 @@ namespace DocApi.Controllers
 
             // Read the container name from configuration
             _containerName = _configuration.GetValue<string>("Storage:ContainerName") ?? "documents";
-            
+
             // Read blocked file extensions from configuration
             var blockedExtensions = _configuration.GetSection("BlockedFileExtensions").Get<List<string>>() ?? new List<string>();
             _blockedFileExtensions = new HashSet<string>(blockedExtensions.Select(ext => ext.ToLower()));
@@ -54,12 +54,16 @@ namespace DocApi.Controllers
             _logger.LogInformation("Fetching documents from CosmosDb for threadId : {0}", threadId);
 
             // fetch the documents from cosmos which belong to this thread
-            var results = await _documentRegistry.GetDocsPerThreadAsync(threadId);
+            var documents = await _documentRegistry.GetDocsPerThreadAsync(threadId);
 
             _logger.LogInformation("Comparing documents from Cosmos against Search for threadId : {0}", threadId);
 
+            // if there are no documents with the current thread, return an empty collection
+            if (documents == null || documents.Count == 0)
+                return Enumerable.Empty<DocsPerThread>();
+
             // check for the uploaded docs if they are chunked
-            return await _searchService.IsChunkingComplete(results);
+            return await _searchService.IsChunkingComplete(documents);
         }
 
         [HttpPost("upload", Name = "Upload")]
@@ -162,5 +166,35 @@ namespace DocApi.Controllers
 
             return NotFound();
         }
+
+        //[HttpPost("harddelete/{documentId}", Name = "HardDeleteDocument")]
+        //public async Task<IActionResult> DeleteDocument([FromRoute] string documentId)
+        //{
+        //    var doc = new DocsPerThread
+        //    {
+        //        Deleted = true,
+        //        DocumentName = "SKO2026-08 Prijslijst Elroq per 1 oktober 2024 V7.pdf",
+        //        Id = "ae28090c-3a0c-4f95-8b60-82762e1c407d",
+        //        ThreadId = "987987978",
+        //        UserId = "876yi67y8"
+        //    };
+
+        //    doc = await _searchService.IsChunkingComplete(doc);
+
+        //    // Delete the document from storage
+        //    if (await _documentStore.DeleteDocumentAsync(doc.Id, _containerName))
+        //    {
+
+        //        // Delete the document from the Cosmos DB container
+        //        if (await _documentRegistry.DeleteDocumentAsync(doc))
+        //        {
+
+        //            // Delete the document from the search index
+        //            await _searchService.DeleteDocumentAsync(doc);
+        //        }
+        //    }
+
+        //    return Ok();
+        //}
     }
 }

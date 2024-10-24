@@ -1,5 +1,6 @@
 ﻿using Domain;
 using Microsoft.Azure.Cosmos;
+using Microsoft.Azure.Cosmos.Linq;
 using System.Reflection.Metadata;
 using Container = Microsoft.Azure.Cosmos.Container;
 
@@ -7,9 +8,7 @@ namespace Infrastructure
 {
     public class CosmosDocumentRegistry : IDocumentRegistry
     {
-
-        //private CosmosClient _cosmosClient;
-        private Container _container;
+        private readonly Container _container;
 
         public CosmosDocumentRegistry(Container cosmosDbContainer)
         {
@@ -18,8 +17,6 @@ namespace Infrastructure
 
         public async Task<string> AddDocumentToThreadAsync(DocsPerThread docsPerThread)
         {
-            //Database database = await _cosmosClient.CreateDatabaseIfNotExistsAsync(databaseName);
-            //Container container = await database.CreateContainerIfNotExistsAsync(new ContainerProperties(containerName, "/userId"));
             try
             {
                 var response = await _container.CreateItemAsync(docsPerThread, new PartitionKey(docsPerThread.UserId));
@@ -41,9 +38,6 @@ namespace Infrastructure
 
         public async Task<string> UpdateDocumentAsync(DocsPerThread docsPerThread)
         {
-            //Database database = await _cosmosClient.CreateDatabaseIfNotExistsAsync(_databaseName);
-            //Container container = await database.CreateContainerIfNotExistsAsync(new ContainerProperties(_containerName, "/userId"));
-
             var response = await _container.ReplaceItemAsync<DocsPerThread>(docsPerThread, docsPerThread.Id, new PartitionKey(docsPerThread.UserId));
             if (response.StatusCode != System.Net.HttpStatusCode.OK)
             {
@@ -51,83 +45,58 @@ namespace Infrastructure
             }
             return response.Resource.Id;
         }
+        public async Task<bool> DeleteDocumentAsync(DocsPerThread docsPerThread)
+        {
+            var response = await _container.DeleteItemAsync<DocsPerThread>(docsPerThread.Id, new PartitionKey(docsPerThread.UserId));
+            if (response.StatusCode != System.Net.HttpStatusCode.NoContent)
+            {
+                throw new Exception("Failed to delete document");
+            }
+            return true;
+        }
 
-        //public async Task RemoveDocumentFromThreadAsync(List<DocsPerThread> documents)
-        //{
-        //    bool isSuccess = false;
-        //    try
-        //    {
-        //        foreach (var document in documents)
-        //        {
-        //            await _container.UpsertItemAsync(document);
-        //        }
-        //        isSuccess = true;
-        //        // is this updating the flag to deleted or not?
-        //        // var response = await _container.DeleteItemAsync<DocsPerThread>(docsPerThread.Id, new PartitionKey(docsPerThread.UserId));
 
-        //        //if (response.StatusCode != System.Net.HttpStatusCode.OK)
-        //        //{
-        //        //    throw new Exception("Failed to delete document from Document Registry");
-        //        //}
-        //    }
-        //    catch (CosmosException cosmosEx)
-        //    {
-        //        throw cosmosEx;
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        throw ex;
-        //    }
-
-        //    return isSuccess;
-
-        //}
-
-        public async Task<bool> RemoveDocumentAsync(DocsPerThread document)
+        internal async Task<bool> MarkDocumentAsDeletedAsync(string documentId, string userId)
         {
             var fieldsToUpdate = new Dictionary<string, object>
             {
-                { "Deleted", true },
+                { "deleted", true },
             };
+
             try
             {
-                bool isUpdated = await UpdateDocumentFieldsAsync(document.Id, document.UserId, fieldsToUpdate);
-                if (!isUpdated)
-                {
-                    return false;
-                }
+                return await UpdateDocumentFieldsAsync(documentId, userId, fieldsToUpdate);
             }
             catch (CosmosException cosmosEx)
             {
-                throw cosmosEx;
+                throw new Exception($"Failed to mark document as deleted: {cosmosEx.Message}", cosmosEx);
             }
             catch (Exception ex)
             {
-                throw ex;
+                throw new Exception($"An error occurred while marking document as deleted: {ex.Message}", ex);
             }
-            return true;
+        }
+
+        public async Task<bool> RemoveDocumentAsync(DocsPerThread document)
+        {
+            return await MarkDocumentAsDeletedAsync(document.Id, document.UserId);
         }
 
         public async Task<bool> RemoveDocumentFromThreadAsync(List<DocsPerThread> documents)
         {
-            var fieldsToUpdate = new Dictionary<string, object>
+            foreach (var document in documents)
             {
-                { "Deleted", true },
-            };
-
-            foreach(var document in documents)
-            {
-                bool isUpdated = await UpdateDocumentFieldsAsync(document.Id, document.UserId, fieldsToUpdate);
+                bool isUpdated = await MarkDocumentAsDeletedAsync(document.Id, document.UserId);
                 if (!isUpdated)
                 {
                     return false;
                 }
             }
-           
+
             return true;
         }
 
-        public async Task<bool> UpdateDocumentFieldsAsync(string documentId, string userId, Dictionary<string, object> fieldsToUpdate)
+        internal async Task<bool> UpdateDocumentFieldsAsync(string documentId, string userId, Dictionary<string, object> fieldsToUpdate)
         {
             var patchOperations = new List<PatchOperation>();
 
@@ -150,26 +119,16 @@ namespace Infrastructure
 
         public async Task<List<DocsPerThread>> GetDocsPerThreadAsync(string threadId)
         {
-            //Database _database = await _cosmosClient.CreateDatabaseIfNotExistsAsync(_databaseName);
-            //Container _container = _database.GetContainer(_containerName);
+            var queryable = _container.GetItemLinqQueryable<DocsPerThread>(requestOptions: new QueryRequestOptions { MaxItemCount = 500 })
+                                      .Where(d => d.ThreadId == threadId);
 
-            List<DocsPerThread> documents = new List<DocsPerThread>();
-            string query = string.Format("SELECT * FROM c WHERE c.threadId = '{0}'", threadId);
-            var queryDefinition = new QueryDefinition(query);
-            var queryOptions = new QueryRequestOptions
-            {
-                MaxItemCount = 500
-            };
-
-            using (var iterator = _container.GetItemQueryIterator<DocsPerThread>(queryDefinition, requestOptions: queryOptions))
+            var documents = new List<DocsPerThread>();
+            using (var iterator = queryable.ToFeedIterator())
             {
                 while (iterator.HasMoreResults)
                 {
                     var response = await iterator.ReadNextAsync();
-                    foreach (var item in response)
-                    {
-                        documents.Add(item);
-                    }
+                    documents.AddRange(response);
                 }
             }
 
