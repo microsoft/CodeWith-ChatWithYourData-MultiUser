@@ -5,9 +5,15 @@ export class ChatService {
 
     private readonly baseUrl = import.meta.env.VITE_BACKEND_URL;
 
-    public getChatsAsync = async (userId: string): Promise<IChat[]> => {
+    public getChatsAsync = async (userId: string, token: string): Promise<IChat[]> => {
+
         try {
-            const response = await fetch(`${this.baseUrl}/threads?userId=${userId}`);
+            const response = await fetch(`${this.baseUrl}/threads?userId=${userId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
             if (!response.ok) {
                 throw new Error(`Error fetching chats: ${response.statusText}`);
             }
@@ -19,9 +25,16 @@ export class ChatService {
         return [];
     };
 
-    public getChatMessagesAsync = async ({chatId, userId} : {chatId: string, userId: string}): Promise<IChatMessage[]> => {
+    public getChatMessagesAsync = async ({chatId, userId, token} : {chatId: string, userId: string, token: string}): Promise<IChatMessage[]> => {
         try {
-            const response = await fetch(`${this.baseUrl}/threads/${chatId}/messages?userId=${userId}`);
+            const response = await fetch(`${this.baseUrl}/threads/${chatId}/messages?userId=${userId}`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
             if (!response.ok) {
                 throw new Error(`Error fetching chat: ${response.statusText}`);
             }
@@ -33,12 +46,13 @@ export class ChatService {
         }
     };
 
-    public createChatAsync = async (userId: string): Promise<IChat> => {
+    public createChatAsync = async ({userId, token} : {userId: string, token: string}): Promise<IChat> => {
 
         try {
             const response = await fetch(`${this.baseUrl}/threads?userId=${userId}`, {
                 method: 'POST',
                 headers: {
+                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 }
             });
@@ -53,12 +67,13 @@ export class ChatService {
         }
     }
 
-    public deleteChatAsync = async ({chatId, userId } : {chatId: string, userId: string}): Promise<boolean> => {
+    public deleteChatAsync = async ({chatId, userId, token } : {chatId: string, userId: string, token: string}): Promise<boolean> => {
 
         try {
             const response = await fetch(`${this.baseUrl}/threads/${chatId}?userId=${userId}`, {
                 method: 'DELETE',
                 headers: {
+                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 }
             });
@@ -72,12 +87,13 @@ export class ChatService {
         }
     }
 
-    public sendMessageAsync = async ({chatId, message, userId} : { chatId: string, message: string, userId: string }): Promise<Response> => {
+    public sendMessageAsync = async ({chatId, message, userId, token} : { chatId: string, message: string, userId: string, token: string }): Promise<Response> => {
 
         try{
             const response = await fetch(`${this.baseUrl}/threads/${chatId}/messages`, {
                 method: 'POST',
                 headers: {
+                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ message: message, userId: userId }),

@@ -2,17 +2,20 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { ChatService } from "../services/ChatService";
 import { IChatMessage } from "../models/ChatMessage";
+import { useAuth } from "./useAuth";
 
 export const useChatMessages = (chatId: string | undefined) => {
 
     const chatService = new ChatService();
+    const {userId, accessToken} = useAuth();   
+
 
     const [messages, setMessages] = useState<IChatMessage[]>([]);
 
     const { isPending: chatPending, error: chatError, data: messagesResult } = useQuery({
         queryKey: ['chat', chatId],
-        queryFn: async () => chatService.getChatMessagesAsync({chatId: chatId || "", userId: "demouser"}),
-        enabled: chatId != undefined,
+        queryFn: async () => chatService.getChatMessagesAsync({chatId: chatId || "", userId: userId, token: accessToken}),
+        enabled: userId != undefined && accessToken != undefined && accessToken != "",
         staleTime: 10000
     });
 
@@ -41,7 +44,7 @@ export const useChatMessages = (chatId: string | undefined) => {
             return updated;
         });
 
-        const response = await chatService.sendMessageAsync({chatId: chatId, message: message, userId: "demouser"});
+        const response = await chatService.sendMessageAsync({chatId: chatId, message: message, userId: userId, token: accessToken});
         
         if (!response || !response.body) {
             return;

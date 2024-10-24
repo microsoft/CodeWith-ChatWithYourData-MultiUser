@@ -2,6 +2,7 @@ import { Subtitle2, makeStyles, tokens } from '@fluentui/react-components';
 import { DocumentGrid } from './DocumentGrid';
 import { DocumentUploader } from './DocumentUploader';
 import { useChatDocuments } from '../../hooks/useChatDocuments';
+import { ListSkeleton } from '../Loading/ListSkeleton';
 
 const useClasses = makeStyles({
     container: {
@@ -44,7 +45,7 @@ type documentViewerProps = {
 
 export function DocumentViewer({ chatId }: documentViewerProps) {
 
-    const { documents, addDocuments, deleteDocument } = useChatDocuments(chatId);
+    const { documents, addDocuments, deleteDocument, documentsPending } = useChatDocuments(chatId);
     const classes = useClasses();
 
     return (
@@ -53,7 +54,12 @@ export function DocumentViewer({ chatId }: documentViewerProps) {
                 <Subtitle2>Documents</Subtitle2>
                 <DocumentUploader uploadDocuments={addDocuments} chatId={chatId} />
             </div>
-            <DocumentGrid documents={documents} deleteDocument={deleteDocument}/>
+            {documentsPending ? (
+                <ListSkeleton/>
+            ) : (
+                <DocumentGrid documents={documents} deleteDocument={deleteDocument}/>
+            ) }
+            
         </div>
     );
 };

@@ -18,18 +18,21 @@ const useClasses = makeStyles({
 
 const columns = [
     { columnKey: "fileName", label: "Document name" },
-    { columnKey: "status", label: "Status" },
-    { columnKey: "lastUpdated", label: "Last updated" }
+    { columnKey: "status", label: "Status" }
 ];
 
 type documentGridProps = { 
       documents?: IDocument[];
-      deleteDocument: (documentId: string) => Promise<boolean>
+      deleteDocument:  ({chatId, documentId}:{ chatId: string; documentId: string; }) => Promise<boolean>
 }
 
 export function DocumentGrid({ documents, deleteDocument } : documentGridProps) {
 
     const classes = useClasses();
+
+    const handleDelete = async (chatId: string, documentId: string) => {
+        await deleteDocument({chatId: chatId, documentId: documentId});
+    }
 
     return (
         <div className={classes.container}>
@@ -55,14 +58,12 @@ export function DocumentGrid({ documents, deleteDocument } : documentGridProps) 
                                 {item.documentName}
                             </TableCell>
                             <TableCell tabIndex={0} role="gridcell">
-                                {item.availableInSearchIndex}
+                                {item.availableInSearchIndex ? "Available" : "Pending"}
                             </TableCell>
-                            <TableCell tabIndex={0} role="gridcell">
-                                {item.lastUpdated}
-                            </TableCell>
+                           
                             <TableCell role="gridcell">
                                 <TableCellLayout className={classes.deleteColumn}>
-                                    <Button icon={<Delete12Regular />} onClick={() => deleteDocument(item.id)}/>
+                                    <Button icon={<Delete12Regular />} onClick={() => handleDelete(item.threadId, item.id)}/>
                                 </TableCellLayout>
                             </TableCell>
                         </TableRow>

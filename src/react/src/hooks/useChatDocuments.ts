@@ -2,11 +2,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { IDocument } from "../models/Document";
 import { DocumentService } from "../services/DocumentService";
+import { useAuth } from "./useAuth";
 
 export const useChatDocuments = (chatId: string | undefined) => {
 
     const queryClient = useQueryClient();
     const documentService = new DocumentService();
+    const {userId, accessToken} = useAuth();   
+
 
     const [documents, setDocuments] = useState<IDocument[]>([]);
 
@@ -23,7 +26,7 @@ export const useChatDocuments = (chatId: string | undefined) => {
     }, [ documentData]);
 
     const { mutateAsync: addDocuments} = useMutation({
-        mutationFn: documentService.addDocumentsAsync,
+        mutationFn: ({chatId, documents} : {chatId: string, documents: File[]}) => documentService.addDocumentsAsync({chatId, userId, documents}),
         onError: () => {
             console.log('Failed to upload a document.');
         },

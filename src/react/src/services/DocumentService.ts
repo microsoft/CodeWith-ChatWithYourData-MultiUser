@@ -30,8 +30,6 @@ export class DocumentService {
             formData.append('documents', file);
         });
 
-        console.log("UPLOAD");
-
         try {
             const response = await fetch(`${this.baseUrl}/chats/${chatId}/Document/upload?userId=${userId}`, {
                 method: 'POST',
@@ -48,9 +46,22 @@ export class DocumentService {
         }
     }
 
-    public deleteDocumentAsync = async (documentId: string): Promise<boolean> => {
-        console.log(documentId)
-        // TO BE IMPLEMENTED.
-        return true;
+    public deleteDocumentAsync = async ({chatId, documentId} : {chatId: string, documentId: string}): Promise<boolean> => {
+        
+        try {
+            const response = await fetch(`${this.baseUrl}/chats/${chatId}/Document/delete/${documentId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            if (!response.ok) {
+                throw new Error(`Error deleting document: ${response.statusText}`);
+            }
+            return true;
+        } catch (error) {
+            console.error('Failed to create chat:', error);
+            return false;
+        }
     }
 }

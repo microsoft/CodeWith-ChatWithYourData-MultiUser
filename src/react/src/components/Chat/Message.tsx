@@ -1,4 +1,4 @@
-import { Field, makeStyles, ProgressBar, tokens, Text } from '@fluentui/react-components';
+import { Field, makeStyles, ProgressBar, tokens } from '@fluentui/react-components';
 import { IChatMessage } from '../../models/ChatMessage';
 import Markdown from 'react-markdown';
 

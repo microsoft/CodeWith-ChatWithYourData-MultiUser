@@ -14,9 +14,9 @@ const useClasses = makeStyles({
 });
 
 export function ChatPage() {
+
     const classes = useClasses();
     const chats = useChats();
-
     return (
         <div className={classes.container}>
             <Chatlist chats={chats.chats} selectedChatId={chats.selectedChatId} selectChat={chats.selectChat} addChat={chats.addChat} deleteChat={chats.deleteChat} loading={chats.isPending} />

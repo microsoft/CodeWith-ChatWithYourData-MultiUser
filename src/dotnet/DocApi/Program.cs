@@ -8,16 +8,7 @@ using Infrastructure.Helpers;
 using Infrastructure;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Azure;
-using System.Runtime.CompilerServices;
-using Microsoft.Extensions.Configuration.EnvironmentVariables;
 using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.ChatCompletion;
-using Microsoft.KernelMemory;
-using Microsoft.AspNetCore.DataProtection;
-using System.Net.Sockets;
-using Microsoft.AspNetCore.DataProtection.KeyManagement;
-using Elastic.Transport;
-using Microsoft.Identity.Client;
 using Microsoft.Extensions.VectorData;
 using Microsoft.SemanticKernel.Data;
 using Microsoft.SemanticKernel.Connectors.AzureAISearch;
@@ -25,6 +16,10 @@ using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
 using Newtonsoft.Json;
 using System.Text.Json.Serialization;
+using DocApi.Utils;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.Identity.Web;
 
 namespace DocApi
 {
@@ -94,7 +89,10 @@ namespace DocApi
                 
                 var kernelBuilder = Kernel.CreateBuilder();
                 kernelBuilder.AddAzureOpenAIChatCompletion(completionModel, endpoint, key);
-                builder.Services.AddSingleton(kernelBuilder.Build());
+                var kernel = kernelBuilder.Build();
+                builder.Services.AddSingleton(kernel);
+                builder.Services.AddSingleton(new PromptHelper(kernel));
+
 
 
                 // Search
@@ -131,11 +129,22 @@ namespace DocApi
             // CORS.
             builder.Services.AddCors(options =>
             {
-                options.AddPolicy("AllowLocalhost8000",
-                    builder => builder.WithOrigins("http://localhost:8000")
-                                      .AllowAnyHeader()
-                                      .AllowAnyMethod());
+            options.AddPolicy("AllowLocalhost8000",
+                builder => builder.WithOrigins("http://localhost:8000")
+                                  .AllowAnyHeader()
+                                  .AllowAnyMethod()
+                                  .AllowCredentials());
             });
+
+            // Auth.
+            var authConfig = builder.Configuration.GetSection("AuthConfig");
+            var audience = authConfig["Audience"];
+            var issuer = authConfig["Issuer"];
+            var scope = authConfig["ChatScope"];
+
+
+            builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
+
 
             var app = builder.Build();
 
@@ -145,13 +154,14 @@ namespace DocApi
                 app.UseSwagger();
                 app.UseSwaggerUI();
             }
-            
+
+            app.UseCors("AllowLocalhost8000");
+
+            app.UseAuthentication();
 
             app.UseHttpsRedirection();
 
             app.UseAuthorization();
-
-            app.UseCors("AllowLocalhost8000");
 
             app.MapControllers();
 

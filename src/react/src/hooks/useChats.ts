@@ -1,21 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ChatService } from "../services/ChatService";
+import { useAuth } from "./useAuth";
 
 export const useChats = () => {
 
     const [selectedChatId, setSelectedChatId] = useState<string | undefined>(undefined);
+    const {userId, accessToken} = useAuth();   
 
     const queryClient = useQueryClient();
     const chatService = new ChatService();
 
     const { isPending, error, data: chats } = useQuery({
         queryKey: ['chats'],
-        queryFn: async () => chatService.getChatsAsync("demouser")
+        queryFn: async () => chatService.getChatsAsync(userId, accessToken),
+        enabled: userId != undefined && accessToken != undefined && accessToken != "",
     });
 
     const { mutateAsync: addChat} = useMutation({
-        mutationFn: chatService.createChatAsync,
+        mutationFn: () => chatService.createChatAsync({userId, token: accessToken}),
         onError: () => {
             console.log('Failed to create a chat.');
         },
@@ -26,18 +29,14 @@ export const useChats = () => {
     });
 
     const { mutateAsync: deleteChat} = useMutation({
-        mutationFn: chatService.deleteChatAsync,
+        mutationFn: ({chatId} : { chatId: string}) => chatService.deleteChatAsync({chatId, userId, token: accessToken}),
         onError: () => {
             console.log('Failed to delete chat.');
         },
-        onSuccess: (data, variables) => {
+        onSuccess: (data) => {
             if(data){
                 queryClient.invalidateQueries({ queryKey: ['chats'] });
-                if(variables){
-                    if(selectedChatId === variables.chatId){
-                        selectChat();
-                    }
-                }
+                selectChat();
             }
         }
     });
