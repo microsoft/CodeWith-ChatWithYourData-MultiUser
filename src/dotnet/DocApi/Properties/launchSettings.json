@@ -27,7 +27,7 @@
       "applicationUrl": "https://localhost:7169;http://localhost:5063",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "AZURE_TENANT_ID": "ecebc6fb-4169-48e0-8f81-6823dc7d7118"
+        "AZURE_TENANT_ID": "f903e023-a92d-4561-9a3b-d8429e3fa1fd"
       }
     },
     "IIS Express": {

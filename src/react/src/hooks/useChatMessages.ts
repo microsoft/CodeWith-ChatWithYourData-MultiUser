@@ -53,18 +53,22 @@ export const useChatMessages = (chatId: string | undefined) => {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         const loop = true;
-        while (loop) {
+        while (loop)
+        {
             const { value, done } = await reader.read();
             if (done) {
                 break;
             }
-            const decodedChunk = decoder.decode(value, { stream: true });
-            result += decodedChunk;
+            const decodedChunk = decoder.decode(value);
+            const chunk = JSON.parse(decodedChunk);
+            result += chunk.message.content
             setMessages(prev => {
                 const updated = [...prev];
                 updated[updated.length - 1] = {
                     role: 'assistant',
-                    content: result
+                    content: result,
+                    followupquestions:chunk.context.followup_questions
+
                 };
                 return updated;
             });
@@ -82,11 +86,23 @@ export const useChatMessages = (chatId: string | undefined) => {
         return true;
     };
 
+    const deleteMessages = async () => {
+        if(!chatId) return false; 
+        const response = await chatService.deleteMessagesAsync({chatId: chatId, token: accessToken});
+        
+        if (!response) {
+            return false;
+        }
+        setMessages([]);
+        return true;
+    };
+
     return {
         chatPending,
         chatError,
         messages,
-        sendMessage
+        sendMessage,
+        deleteMessages  
     };
 
 }

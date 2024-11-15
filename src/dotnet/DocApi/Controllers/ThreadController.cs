@@ -8,10 +8,16 @@ using System.Text;
 using DocApi.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Identity.Web.Resource;
+using Microsoft.Azure.Cosmos;
+using System.Text.Json;
+using WebApi.Helpers;
+using ResponseMessage = WebApi.Entities.ResponseMessage;
+using System.Text.RegularExpressions;
+using WebApi.Entities;
 
 namespace DocApi.Controllers
 {
-   
+
     [Route("threads")]
     [Authorize]
     [ApiController]
@@ -26,10 +32,7 @@ namespace DocApi.Controllers
         private readonly VectorStoreTextSearch<IndexDoc> _search;
         private readonly PromptHelper _promptHelper;
 
-        public class MessageRequest
-        {
-            public string Message { get; set; }
-        }
+        
 
         public ThreadController(
             ILogger<ThreadController> logger,
@@ -51,8 +54,7 @@ namespace DocApi.Controllers
         [HttpGet("")]
         public async Task<IActionResult> GetThreads()
         {
-
-            string userId = HttpContext.User.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value;
+            string? userId = HttpContext.GetUserId();
 
             if (userId == null)
             {
@@ -70,8 +72,7 @@ namespace DocApi.Controllers
         [HttpPost("")]
         public async Task<IActionResult> CreateThread()
         {
-
-            string userId = HttpContext.User.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value;
+            string? userId = HttpContext.GetUserId();
 
             if (userId == null)
             {
@@ -96,9 +97,7 @@ namespace DocApi.Controllers
         [HttpDelete("{threadId}")]
         public async Task<IActionResult> DeleteThread([FromRoute] string threadId)
         {
-            _logger.LogInformation("Deleting thread in CosmosDb for threadId : {0}", threadId);
-
-            string userId = HttpContext.User.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value;
+            string? userId = HttpContext.GetUserId();
 
             if (userId == null)
             {
@@ -131,11 +130,37 @@ namespace DocApi.Controllers
             return Ok(result);
         }
 
+        [HttpDelete("{threadId}/messages")]
+        public async Task<IActionResult> DeleteMessages([FromRoute] string threadId)
+        {
+            _logger.LogInformation("Deleting messages in CosmosDb for threadId : {0}", threadId);
+
+            string userId = HttpContext.User.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value;
+
+            if (userId == null)
+            {
+                return BadRequest();
+            }
+
+            bool result = await _threadRepository.DeleteMessages(userId, threadId);
+
+            if (result)
+            {
+                return Ok();
+            }
+
+            return BadRequest();
+
+        }
+
+
         [HttpPost("{threadId}/messages")]
-        [Produces("text/event-stream")]
+        [Produces("application/json")]
         [Consumes("application/json")]
         public async Task<IActionResult> Post([FromRoute] string threadId, [FromBody] MessageRequest messageRequest)
         {
+            bool suggestFollowupQuestions = true; // need to configure this
+
             _logger.LogInformation("Adding thread message to CosmosDb for threadId : {0}", threadId);
 
             string userId = HttpContext.User.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value;
@@ -168,32 +193,55 @@ namespace DocApi.Controllers
 
                 await _promptHelper.AugmentHistoryWithSearchResults(history, searchResults);
 
-                var response = completionService.GetStreamingChatMessageContentsAsync(
+                var response = await completionService.GetChatMessageContentsAsync(
                     chatHistory: history,
                     kernel: _kernel
                 );
 
                 var assistantResponse = "";
-
-                await using (StreamWriter streamWriter = new StreamWriter(Response.Body, Encoding.UTF8))
+                foreach (var chunk in response)
                 {
-                    await foreach (var chunk in response)
-                    {
-                        assistantResponse += chunk.Content;
-                        await streamWriter.WriteAsync(chunk.Content);
-                        await streamWriter.FlushAsync();
-                    }
+                    assistantResponse += chunk.Content;
                 }
 
-                await _threadRepository.PostMessageAsync(userId, threadId, messageRequest.Message, "user");
+                string[]? followUpQuestionList = null;
+                if (suggestFollowupQuestions)
+                {
+                    var question = messageRequest.Message;
+                    followUpQuestionList = await _promptHelper.GenerateFollowUpQuestionsAsync(history, assistantResponse, question);
+                }
 
+                var responseMessage = new ResponseMessage("assistant", assistantResponse);
+                var responseContext = new ResponseContext(FollowupQuestions: followUpQuestionList ?? Array.Empty<string>());
+                var choice = new ResponseChoice(
+                    Index: 0,
+                    Message: responseMessage,
+                    Context: responseContext,
+                    CitationBaseUrl: "https://localhost");
+
+                await _threadRepository.PostMessageAsync(userId, threadId, messageRequest.Message, "user");
                 await _threadRepository.PostMessageAsync(userId, threadId, assistantResponse, "assistant");
+
+                return Ok(choice);
+            }
+            catch (HttpOperationException httpOperationException)
+            {
+                _logger.LogError("An error occurred: {0}", httpOperationException.Message);
+                return RateLimitResponse(httpOperationException);
             }
             catch (Exception ex)
             {
                 _logger.LogError("An error occurred: {0}", ex.Message);
             }
             return new EmptyResult();
+        }
+
+        internal IActionResult RateLimitResponse(HttpOperationException httpOperationException)
+        {
+            string message = httpOperationException.Message;
+            int retryAfterSeconds = Utilities.ExtractRetryAfterSeconds(message);
+            Response.Headers["retry-after"] = retryAfterSeconds.ToString();
+            return StatusCode(429, "Too many requests. Please try again later.");
         }
     }
 }

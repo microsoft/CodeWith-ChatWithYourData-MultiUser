@@ -10,6 +10,7 @@ using Microsoft.Identity.Client;
 using Microsoft.Identity.Web.Resource;
 using System.Reflection.Metadata;
 using System.Xml.Linq;
+using WebApi.Helpers;
 
 namespace DocApi.Controllers
 {
@@ -85,12 +86,23 @@ namespace DocApi.Controllers
                 return BadRequest("No files uploaded.");
             }
 
+            // Define the maximum file size limit (e.g., 100 MB)
+            const long maxFileSize = 100 * 1024 * 1024;
+
             var uploadResults = new List<string>();
 
             foreach (var document in documents)
             {
                 try
                 {
+                    // Check if the file size exceeds the limit
+                    if (document.Length > maxFileSize)
+                    {
+                        _logger.LogWarning("File size exceeds the limit: {0}", document.FileName);
+                        uploadResults.Add($"File size exceeds the limit: {document.FileName}");
+                        continue;
+                    }
+
                     // check if the file extension is blocked
                     if (_blockedFileExtensions.Contains(document.FileName.Split('.').Last().ToLower()))
                     {
@@ -98,10 +110,13 @@ namespace DocApi.Controllers
                         continue;
                     }
 
+                    // Sanitize the filename to ensure it contains only ASCII characters
+                    var fileName = Utilities.SanitizeFileName(document.FileName);
+
                     _logger.LogInformation("Uploading document: {0}", document.FileName);
 
                     // First step is to upload the document to the blob storage
-                    DocsPerThread docsPerThread = await _documentStore.AddDocumentAsync(userId, document, threadId, _containerName);
+                    DocsPerThread docsPerThread = await _documentStore.AddDocumentAsync(userId, document, fileName, threadId, _containerName);
                     if (docsPerThread == null)
                     {
                         throw new Exception("File upload failed");

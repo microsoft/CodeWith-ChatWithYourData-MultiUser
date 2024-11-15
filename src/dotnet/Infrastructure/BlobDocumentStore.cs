@@ -22,11 +22,10 @@ namespace Infrastructure
             _blobServiceClient = client;
         }
 
-        public async Task<DocsPerThread> AddDocumentAsync(string userId, IFormFile document, string threadId, string folder)
+        public async Task<DocsPerThread> AddDocumentAsync(string userId, IFormFile document, string documentName, string threadId, string folder)
         {
             var documentId = Guid.NewGuid().ToString();
             var blobContainerClient = _blobServiceClient.GetBlobContainerClient(folder);
-            var documentName = document.FileName;
             var blobClient = blobContainerClient.GetBlobClient(documentId);
 
             //Upload the document

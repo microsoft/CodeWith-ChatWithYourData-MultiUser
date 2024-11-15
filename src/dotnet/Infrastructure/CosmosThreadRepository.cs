@@ -15,17 +15,25 @@ using System.Xml.Linq;
 using Thread = Domain.Thread;
 using Container = Microsoft.Azure.Cosmos.Container;
 using Microsoft.Azure.Cosmos.Linq;
+using Microsoft.Extensions.Configuration;
 
 namespace Infrastructure
 {
 
     public class CosmosThreadRepository : IThreadRepository
     {
+        private readonly CosmosClient _client;
+        private readonly IConfiguration _configuration;
         private Container _container;
 
-        public CosmosThreadRepository(Container cosmosDbContainer)
+        public CosmosThreadRepository(CosmosClient client, IConfiguration configuration)
         {
-            _container = cosmosDbContainer;
+            _client = client;
+            _configuration = configuration;
+
+            string databaseName = _configuration.GetValue<string>("Cosmos:DatabaseName") ?? "chats";
+            string containerName = _configuration.GetValue<string>("Cosmos:ThreadHistoryContainerName") ?? "threadhistory";
+            _container = _client.GetContainer(databaseName, containerName);
         }
 
         public async Task<List<ThreadMessage>> GetAllThreads(DateTime expirationDate)
@@ -104,6 +112,33 @@ namespace Infrastructure
             }
 
             return threads;
+        }
+
+        public async Task<bool> DeleteMessages(string userId, string threadId)
+        {
+            bool isDeleted = false;
+            var messages = await GetMessagesAsync(userId, threadId);
+            foreach(ThreadMessage message in messages)
+            {
+                try
+                {
+                    await _container.DeleteItemAsync<ThreadMessage>(message.Id, new PartitionKey(userId));
+                }
+                catch (CosmosException ex)
+                {
+                    throw new Exception($"Failed to delete message: {ex.Message}", ex);
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception($"An error occurred while deleting message: {ex.Message}", ex);
+                }
+                finally
+                {
+                    isDeleted = true;
+                }
+            }
+
+            return isDeleted;
         }
 
         public async Task<bool> MarkThreadAsDeletedAsync(string userId, string threadId)

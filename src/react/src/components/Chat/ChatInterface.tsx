@@ -1,10 +1,11 @@
-import { makeStyles, Toast, Toaster, ToastTitle, tokens, useId, useToastController } from '@fluentui/react-components';
+import { makeStyles, Toast, Toaster, ToastIntent, ToastTitle, tokens, useId, useToastController, Dialog, DialogTrigger, DialogSurface, Button, DialogBody, DialogTitle, DialogContent, DialogActions  } from '@fluentui/react-components';
 import { useChatMessages } from '../../hooks/useChatMessages';
 import { useState } from 'react';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import { DocumentViewer } from '../Documents/DocumentViewer';
 import { ChatHeader } from './ChatHeader';
+import React from 'react';
 
 const useClasses = makeStyles({
     root: {
@@ -37,27 +38,60 @@ type chatInterfaceType = {
 
 export function ChatInterface({ selectedChatId }: chatInterfaceType) {
     const classes = useClasses();
-    const { messages, sendMessage, chatPending } = useChatMessages(selectedChatId);
+    const { messages, sendMessage, chatPending, deleteMessages } = useChatMessages(selectedChatId);
     const [userInput, setUserInput] = useState<string>("");
     const [selectedTab, setSelectedTab] = useState<string>("chat");
     const toasterId = useId("toaster");
     const { dispatchToast } = useToastController(toasterId);
+    const [isDialogVisible, setIsDialogVisible] = useState(false);
+    const labelId: string = useId('dialogLabel');
+    const subTextId: string = useId('subTextLabel');
 
-    const notify = () =>
+    const notify = (intent:ToastIntent, notification:string) =>
         dispatchToast(
             <Toast className={classes.toast}>
-                <ToastTitle>Your rate limit for sending messages is exceeded, please try again in a while.</ToastTitle>
+                <ToastTitle>{notification}</ToastTitle>
             </Toast>,
-            { position: "bottom", intent: "warning", timeout: 5000}
+            { position:'top-end', intent: intent, timeout: 5000 }
         );
 
-    const submitMessage = async () => {
-        if (selectedChatId && userInput) {
+    const submitMessage = async (message: string) => {
+        if (selectedChatId && message) {
             setUserInput("");
-            const success = await sendMessage({ message: userInput });
-            if (!success) notify();
+            const success = await sendMessage({ message });
+            if (!success) notify('error', "Failed to send message.");
         }
     }
+
+    const handleFollowUp = (question: string) => {
+        submitMessage(question);
+    }
+
+    const clearChat = async () => {
+        setIsDialogVisible(true);
+    }
+
+    const confirmClearChat = async () => {
+        setIsDialogVisible(false);
+        const success = await deleteMessages();
+        if (!success) notify('error', "Failed to clear chat.");
+        else notify('success', "Chat cleared.");
+    }
+
+    const cancelClearChat = () => {
+        setIsDialogVisible(false);
+    }
+   
+    const modalProps = React.useMemo(
+        () => ({
+            titleAriaId: labelId,
+            subtitleAriaId: subTextId,
+            isBlocking: false,
+            styles: { main: { maxWidth: 450 }, backgroundColor:tokens.colorBrandBackground2},
+        }),
+        [labelId, subTextId],
+    );
+
 
     return (
         <div className={classes.root}>
@@ -66,8 +100,24 @@ export function ChatInterface({ selectedChatId }: chatInterfaceType) {
                 {(selectedChatId) && (<ChatHeader selectedTab={selectedTab} setSelectedTab={setSelectedTab} />)}
                 {(selectedTab === "chat" && selectedChatId) && (
                     <>
-                        <MessageList messages={messages} loading={chatPending} />
-                        <ChatInput value={userInput} setValue={setUserInput} onSubmit={submitMessage} />
+                         <Dialog open={isDialogVisible} onOpenChange={(event, data) => setIsDialogVisible(data.open)}>
+                            <DialogSurface>
+                                <DialogBody>
+                                <DialogTitle>Clear Messages</DialogTitle>
+                                <DialogContent>
+                                    Are you sure you want to clear this thread?
+                                </DialogContent>
+                                <DialogActions>
+                                    <DialogTrigger disableButtonEnhancement>
+                                    <Button appearance="secondary">No</Button>
+                                    </DialogTrigger>
+                                    <Button appearance="primary" onClick={confirmClearChat}>Yes</Button>
+                                </DialogActions>
+                                </DialogBody>
+                            </DialogSurface>
+                            </Dialog>
+                        <MessageList messages={messages} loading={chatPending} onFollowUp={handleFollowUp} />                        
+                        <ChatInput value={userInput} setValue={setUserInput} onSubmit={() => submitMessage(userInput)} clearChat={clearChat} />
                     </>
                 )}
                 {(selectedTab === "documents" && selectedChatId) && (<DocumentViewer chatId={selectedChatId} />)}

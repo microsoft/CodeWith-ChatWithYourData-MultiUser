@@ -1,5 +1,5 @@
 import { makeStyles, tokens, Button, Input } from '@fluentui/react-components';
-import { Send24Regular } from '@fluentui/react-icons';
+import { BroomRegular, Send24Regular } from '@fluentui/react-icons';
 
 const useClasses = makeStyles({
     container: {
@@ -22,15 +22,17 @@ const useClasses = makeStyles({
     button: {
         height: '60px'
     }
+   
 });
 
 type chatInputType = {
     value: string,
     setValue: (value: string ) => void,
-    onSubmit: () => void
+    onSubmit: () => void,
+    clearChat: () => void
 }
 
-export function ChatInput({ value, setValue, onSubmit }: chatInputType) {
+export function ChatInput({ value, setValue, onSubmit,clearChat }: chatInputType) {
     const classes = useClasses();
     
     const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -41,6 +43,7 @@ export function ChatInput({ value, setValue, onSubmit }: chatInputType) {
 
     return (
         <div className={classes.container}>
+            <Button className={`${classes.button}`} icon={<BroomRegular />}onClick={clearChat} aria-label="Clear session" role="button" tabIndex={0}/>
             <Input onKeyDown={handleKeyDown} className={classes.input} size="large" value={value} onChange={(_e, data) => setValue(data.value)}/>
             <Button className={classes.button} onClick={onSubmit} size="large" icon={<Send24Regular />}/>
         </div>

@@ -17,4 +17,5 @@ public interface IThreadRepository
     Task<List<ThreadMessage>> GetAllThreads(DateTime expirationDate);
     Task<List<string>> GetAllThreadIds(DateTime expirationDate);
     Task<bool> MarkThreadAsDeletedAsync(string userId, string threadId);
+    Task<bool> DeleteMessages(string userId, string threadId);
 }

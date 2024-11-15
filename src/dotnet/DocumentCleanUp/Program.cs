@@ -38,43 +38,24 @@ var host = new HostBuilder()
        services.AddSingleton(sp => new SearchIndexClient(serviceUri, azureCredential));
        services.AddSingleton(sp => new SearchIndexerClient(serviceUri, azureCredential));
 
+       // Setting up the Cosmosdb client
+       services.AddSingleton(sp =>
+       {
+           var configuration = sp.GetRequiredService<IConfiguration>();
+           var accountEndpoint = configuration["Cosmos:AccountEndpoint"];
+           var cosmosClientOptions = new CosmosClientOptions
+           {
+               ConnectionMode = ConnectionMode.Direct,
+               RequestTimeout = TimeSpan.FromSeconds(30)
+           };
+           return new CosmosClient(accountEndpoint, azureCredential, cosmosClientOptions);
+       });
+
+
+       services.AddSingleton<IDocumentRegistry, CosmosDocumentRegistry>();
        services.AddSingleton<ISearchService, AISearchService>();
        services.AddSingleton<IDocumentStore, BlobDocumentStore>();
-       services.AddSingleton<IDocumentRegistry>(sp =>
-       {
-           string accountEndpoint = hostContext.Configuration["MyCosmosConnection"];
-           string cosmosDBDatabase = hostContext.Configuration["CosmosDbDatabase"];
-           string cosmosDBContainer = hostContext.Configuration["CosmosDbDocumentContainer"];
-
-           // Create and configure CosmosClientOptions
-           var cosmosClientOptions = new CosmosClientOptions
-           {
-               ConnectionMode = ConnectionMode.Direct,
-               RequestTimeout = TimeSpan.FromSeconds(30)
-           };
-
-           var client = new CosmosClient(accountEndpoint, azureCredential, cosmosClientOptions);
-           var database = client.GetDatabase(cosmosDBDatabase);
-           var container = database.GetContainer(cosmosDBContainer);
-           return new CosmosDocumentRegistry(container);
-       });
-       services.AddSingleton<IThreadRepository>(sp =>
-       {
-           string accountEndpoint = hostContext.Configuration["MyCosmosConnection"];
-           string databaseName = hostContext.Configuration["CosmosDbDatabase"];
-           string containerName = hostContext.Configuration["CosmosDbThreadContainer"];
-
-           // Create and configure CosmosClientOptions
-           var cosmosClientOptions = new CosmosClientOptions
-           {
-               ConnectionMode = ConnectionMode.Direct,
-               RequestTimeout = TimeSpan.FromSeconds(30)
-           };
-           var client = new CosmosClient(accountEndpoint, azureCredential, cosmosClientOptions);
-           var database = client.GetDatabase(databaseName);
-           var container = database.GetContainer(containerName);
-           return new CosmosThreadRepository(container);
-       });
+       services.AddSingleton<IThreadRepository, CosmosThreadRepository>();
 
        services.AddSingleton<ThreadCleanup>();
        services.AddSingleton<DocumentCleanUpFunction>();

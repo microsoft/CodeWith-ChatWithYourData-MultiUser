@@ -2,30 +2,30 @@
 using Microsoft.SemanticKernel.Data;
 using System.Text.Json.Serialization;
 
-public class IndexDoc
+public record IndexDoc
 {
     [JsonPropertyName("chunk_id")]
     [VectorStoreRecordKey]
     [TextSearchResultName]
-    public String ChunkId { get; init; }
+    public required string ChunkId { get; init; }
 
     [JsonPropertyName("content")]
     [VectorStoreRecordData]
     [TextSearchResultValue]
 
-    public string Content { get; init; }
+    public required string Content { get; init; }
 
     [JsonPropertyName("file_name")]
     [VectorStoreRecordData]
     [TextSearchResultLink]
 
-    public string FileName { get; init; }
+    public required string FileName { get; init; }
 
     [JsonPropertyName("document_id")]
     [VectorStoreRecordData]
     [TextSearchResultLink]
 
-    public string DocumentId { get; init; }
+    public required string DocumentId { get; init; }
 
     [JsonPropertyName("thread_id")]
     [VectorStoreRecordData(IsFilterable = true)]

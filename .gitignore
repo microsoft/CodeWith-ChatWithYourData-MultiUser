@@ -405,3 +405,5 @@ FodyWeavers.xsd
 /src/dotnet/DocumentCleanUp/Properties/launchSettings.json
 /src/dotnet/DocumentCleanUp/Properties/serviceDependencies.json
 /src/dotnet/DocumentCleanUp/Properties/serviceDependencies.local.json
+src/dotnet/DocApi/appsettings.Development.json
+/src/dotnet/DocApi/appsettings.Development.json

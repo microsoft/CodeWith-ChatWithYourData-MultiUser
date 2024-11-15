@@ -4,29 +4,40 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Azure;
+using Azure.Identity;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Indexes.Models;
 using Azure.Search.Documents.Models;
 using Domain;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace Infrastructure
 {
     public class AISearchService : ISearchService
     {
-        private SearchIndexClient _indexClient;
         private SearchClient _searchClient;
+        private SearchIndexClient _indexClient;
         private SearchIndexerClient _indexerClient;
+        private readonly ILogger<AISearchService> _logger;
+        private readonly IConfiguration _configuration;
 
-        private readonly string indexerName = "onyourdata-indexer";
+        private string indexerName;
+        private string indexName;
 
-        public AISearchService(SearchIndexClient indexClient, SearchClient searchClient, SearchIndexerClient indexerClient)
+        public AISearchService(SearchIndexClient indexClient, IConfiguration configuration, ILogger<AISearchService> logger)
         {
-            _indexClient = indexClient;
-            _searchClient = searchClient;
-            _indexerClient = indexerClient;
-        }
+            _logger = logger;
+            _configuration = configuration;
 
+            indexerName = configuration.GetValue<string>("Search:IndexerName") ?? "onyourdata-indexer";
+            indexName = configuration.GetValue<string>("Search:IndexName") ?? "onyourdata";
+
+            _indexClient = indexClient;
+            _searchClient = indexClient.GetSearchClient(indexName);
+            _indexerClient = new SearchIndexerClient(_searchClient.Endpoint, new DefaultAzureCredential());
+        }
 
         public async Task<bool> StartIndexing()
         {

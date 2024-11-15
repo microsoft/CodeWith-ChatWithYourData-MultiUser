@@ -1,6 +1,9 @@
 ﻿using Domain;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Cosmos.Linq;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using System.Configuration;
 using System.Reflection.Metadata;
 using Container = Microsoft.Azure.Cosmos.Container;
 
@@ -8,11 +11,21 @@ namespace Infrastructure
 {
     public class CosmosDocumentRegistry : IDocumentRegistry
     {
-        private readonly Container _container;
+        private readonly CosmosClient _client;
+        private readonly IConfiguration _configuration;
+        private readonly ILogger<CosmosDocumentRegistry> _logger;
 
-        public CosmosDocumentRegistry(Container cosmosDbContainer)
+        private Container _container;
+
+        public CosmosDocumentRegistry(CosmosClient client, IConfiguration configuration, ILogger<CosmosDocumentRegistry> logger)
         {
-            _container = cosmosDbContainer;
+            _logger = logger;
+            _client = client;
+            _configuration = configuration;
+            string databaseName = _configuration.GetValue<string>("Cosmos:DatabaseName") ?? "chats";
+            string containerName = _configuration.GetValue<string>("Cosmos:DocumentContainerName") ?? "documentsperthread";
+
+            _container = _client.GetContainer(databaseName, containerName);
         }
 
         public async Task<string> AddDocumentToThreadAsync(DocsPerThread docsPerThread)

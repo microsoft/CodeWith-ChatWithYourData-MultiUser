@@ -2,7 +2,6 @@ import { makeStyles } from '@fluentui/react-components';
 import { Message } from './Message';
 import { useEffect, useRef } from 'react';
 import { IChatMessage } from '../../models/ChatMessage';
-import { ChatSkeleton } from '../Loading/ChatSkeleton';
 
 const useClasses = makeStyles({
     scrollContainer: {
@@ -23,12 +22,13 @@ const useClasses = makeStyles({
     }
 });
 
-type messageListType = {
-    messages: IChatMessage[],
-    loading: boolean
+type messageListProps = {
+    messages: IChatMessage[];
+    loading: boolean;
+    onFollowUp: (question: string) => void;
 }
 
-export function MessageList({ messages, loading }: messageListType) {
+export function MessageList({ messages, loading, onFollowUp }: messageListProps) {
 
     const classes = useClasses();
     const containerRef = useRef<HTMLDivElement>(null);
@@ -45,13 +45,10 @@ export function MessageList({ messages, loading }: messageListType) {
     return (
         <div ref={containerRef} className={classes.scrollContainer}>
             <div className={classes.messageContainer}>
-                {loading ? (<ChatSkeleton />) : (
-                    <>
-                        {messages &&
-                            messages.map((item: IChatMessage) => {
-                                return <Message message={item} />
-                            })}</>
-                )}
+                {messages.map((message) => (
+                    <Message key={message.id} message={message} onFollowUp={onFollowUp} />
+                ))}
+                {loading && <div>Loading...</div>}
             </div>
         </div>
     );

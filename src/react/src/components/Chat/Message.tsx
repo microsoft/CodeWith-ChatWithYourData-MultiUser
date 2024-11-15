@@ -1,6 +1,8 @@
-import { Field, makeStyles, ProgressBar, tokens } from '@fluentui/react-components';
+import { Field, makeStyles, ProgressBar, tokens, Button } from '@fluentui/react-components';
+import { Stack, Text} from '@fluentui/react'
 import { IChatMessage } from '../../models/ChatMessage';
 import Markdown from 'react-markdown';
+import { parseAnswer } from './AnswerParser';
 
 const useClasses = makeStyles({
     userContainer: {
@@ -47,28 +49,72 @@ const useClasses = makeStyles({
     title: {
         flexGrow: 1,
         fontSize: tokens.fontSizeBase500,
+    },
+    followUpContainer: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-end',
+        marginTop: tokens.spacingVerticalS,
+        marginLeft: 'auto',
+        marginRight: 'auto',
+        maxWidth: '80%',
+    },
+    followUpButton: {
+        marginTop: tokens.spacingVerticalXS
     }
 });
 
 type messageProps = {
-    message: IChatMessage
+    message: IChatMessage;
+    onFollowUp: (question: string) => void;
 }
 
-export function Message({ message }: messageProps) {
+export function Message({ message, onFollowUp }: messageProps) {
 
+    const answer = parseAnswer(message);
     const classes = useClasses();
 
     return (
-        <div id={message.id} className={message.role == "user" ? classes.userContainer : classes.assistantContainer}>
-            {message.content == "" ? (
-                <div className={classes.thinkingContainer}>
-                <Field validationMessage="Thinking..." validationState="none">
-                    <ProgressBar />
-                </Field>
+        <>
+            <div id={message.id} className={message.role == "user" ? classes.userContainer : classes.assistantContainer}>
+                {message.content == "" ? (
+                    <div className={classes.thinkingContainer}>
+                        <Field validationMessage="Thinking..." validationState="none">
+                            <ProgressBar />
+                        </Field>
+                    </div>
+                ) : (
+                    <div className={message.role == "user" ? classes.userTextContainer : classes.assistantTextContainer}>
+                        <Markdown>{answer.markdownFormatText}</Markdown>
+                        <Stack horizontal className="" verticalAlign="start">
+                        {!!answer.citations.length  && (
+                            <Stack.Item aria-label="References">
+                                <Stack style={{ width: "100%" }} >
+                                    <Stack horizontal horizontalAlign='start' verticalAlign='center'>
+                                        <Text
+                                            className=""
+                                            
+                                        >
+                                        <span>{answer.citations.length > 1 ? answer.citations.length + " references" : "1 reference"}</span>
+                                        </Text>
+                                    </Stack>
+
+                                </Stack>
+                            </Stack.Item>
+                        )}
+                        </Stack>
+                    </div>
+                )}
+            </div>
+            {message.followupquestions && message.followupquestions.length > 0 && (
+                <div className={classes.followUpContainer}>
+                    {message.followupquestions.map((question, index) => (
+                        <Button key={index} className={classes.followUpButton} onClick={() => onFollowUp(question)}>
+                            {question}
+                        </Button>
+                    ))}
                 </div>
-            ) : (<div className={message.role == "user" ? classes.userTextContainer : classes.assistantTextContainer}>
-                <Markdown>{message.content}</Markdown>
-            </div>)}
-        </div>
-    )
+            )}
+        </>
+    );
 };
