@@ -11,16 +11,19 @@ param azureOpenAIName string = 'openai-${uniqueString(resourceGroup().id)}'
 param blobStorageContainerName string = 'documents'
 
 @description('Name of the embedding model to use.')
-param embeddingModelName string = 'text-embedding-ada-002'
+param embeddingModelName string = 'text-embedding-3-large'
 
 @description('Name/id of the embedding model to be used for the indexer during indexing.')
-param indexerEmbeddingModelId string = 'text-embedding-ada-002-indexer'
+param indexerEmbeddingModelId string = 'text-embedding-3-large-indexer'
 
 @description('Name of completionmodel.')
 param completionModelName string = 'gpt-4o'
 
+@description('API Version of completion model.')
+param completionModelAPIVersion string = '2024-08-06'
+
 @description('Name/id of the embedding model to be used for the indexer during querying.')
-param integratedVectorEmbeddingModelId string = 'text-embedding-ada-002-aisearchquery'
+param integratedVectorEmbeddingModelId string = 'text-embedding-3-large-aisearchquery'
 
 @description('Name of the AI search index to be created or updated, must be lowercase.')
 param indexName string = 'onyourdata'
@@ -39,7 +42,7 @@ param functionAppName string = 'func-${uniqueString(resourceGroup().id)}'
 
 @maxLength(24)
 @description('Name of the storage account for the function app.')
-param functionAppStorageAccountName string = take('safunc${uniqueString(resourceGroup().id)}', 24)
+param functionAppStorageAccountName string = take('sa${uniqueString(resourceGroup().id)}func', 20)
 
 @description('Name of the cosmos DB account.')
 param cosmosAccountName string = 'cosmos-${uniqueString(resourceGroup().id)}'
@@ -210,6 +213,7 @@ module storageAccount 'br/public:avm/res/storage/storage-account:0.9.1' = {
   params: {
     name: storageAccountName
     kind: 'BlobStorage'
+    allowSharedKeyAccess:false
     location: resourceGroup().location
     skuName: 'Standard_GRS'
     allowBlobPublicAccess: false
@@ -254,7 +258,7 @@ module openAi './modules/cognitiveservices/cognitive-services.bicep' = {
         model: {
           format: 'OpenAI'
           name: embeddingModelName
-          version: '2'
+          version: '1'
         }
         name: indexerEmbeddingModelId
       }
@@ -262,7 +266,7 @@ module openAi './modules/cognitiveservices/cognitive-services.bicep' = {
         model: {
           format: 'OpenAI'
           name: embeddingModelName
-          version: '2'
+          version: '1'
         }
         name: integratedVectorEmbeddingModelId
       }
@@ -270,7 +274,7 @@ module openAi './modules/cognitiveservices/cognitive-services.bicep' = {
         model: {
           format: 'OpenAI'
           name: completionModelName
-          version: '2024-05-13'
+          version: completionModelAPIVersion
         }
         name: completionModelName
       }
@@ -300,7 +304,7 @@ module cosmosDB 'br/public:avm/res/document-db/database-account:0.8.0' = {
   name: 'cosmosDB'
   params: {
     name: cosmosAccountName
-    location: resourceGroup().location
+    location: 'francecentral'
     networkRestrictions: {
       publicNetworkAccess: 'Enabled'
       ipRules: []
@@ -393,6 +397,10 @@ resource backendAppSettings 'Microsoft.Web/sites/config@2022-09-01' = {
     'OpenAI:EndPoint': openAi.outputs.endpoint
     'OpenAI:EmbeddingModel': integratedVectorEmbeddingModelId
     'OpenAI:CompletionModel': completionModelName
+    'OpenAI:ReasoningModel': completionModelName
+    APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsFuntionApp.outputs.connectionString
+    'SPE:ContainerTypeId': ''
+    Settings:'{"AllowInitialPromptRewrite":false,"AllowFollowUpPrompts":true,"UseSemanticRanker":false,"AllowInitialPromptToHelpUser":true,"PredefinedPrompts":[{"Id":"1","Name":"Default","Prompt":"You are a helpful assistant."},{"Id":"2","Name":"Default with Semantic Ranker","Prompt":"You are a helpful assistant. Use semantic ranker to find the most relevant document."}],"Seed":0,"Temperature":1.0}'
   }
 }
 

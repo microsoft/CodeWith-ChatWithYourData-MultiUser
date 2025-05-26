@@ -1,8 +1,10 @@
 import { IDocument } from "../models/Document";
+import { env } from "../config/env";
+import { IIndexDoc } from "../models/IndexDoc";
+import LoggingService from "./LoggingService";
 
 export class DocumentService {
-
-    private readonly baseUrl = process.env.VITE_BACKEND_URL;
+    private readonly baseUrl = env.BACKEND_URL;
 
     public getDocumentsAsync = async (chatId: string, token: string): Promise<IDocument[]> => {
         try {
@@ -23,10 +25,8 @@ export class DocumentService {
         }
     };
 
-    public addDocumentsAsync = async ({ chatId, documents, token }: { chatId: string, documents: File[], token: string }): Promise<boolean> => {
-
-        if (!chatId || !Array.isArray(documents) || documents.length === 0) {
-            console.log('No chat or documents to upload');
+    public addDocumentsAsync = async ({ chatId, documents, token }: { chatId: string, documents: File[], token: string }): Promise<boolean> => {        if (!chatId || !Array.isArray(documents) || documents.length === 0) {
+            LoggingService.log('No chat or documents to upload');
             return false;
         }
         const formData = new FormData();
@@ -44,10 +44,9 @@ export class DocumentService {
             });
             if (!response.ok) {
                 return false;
-            }
-            return true;
+            }            return true;
         } catch (e) {
-            console.log(e);
+            LoggingService.error(e);
             return false;
         }
     }
@@ -71,4 +70,60 @@ export class DocumentService {
             return false;
         }
     }
+
+    public getDocumentChunksAsync = async ({threadId, documentId, token}: {threadId: string, documentId: string, token: string}): Promise<IIndexDoc[]> => {
+        try {
+            const response = await fetch(`${this.baseUrl}/threads/${threadId}/documents/${documentId}/chunks`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            if (!response.ok) {
+                throw new Error(`Error fetching document chunks: ${response.statusText}`);
+            }
+           
+            const chunks: IIndexDoc[] = await response.json();
+            return chunks;
+        } catch (error) {
+            console.error('Failed to fetch document chunks:', error);
+            throw error;
+        }
+    };
+
+    public extractDocumentAsync = async ({threadId, documentId, token}: {threadId: string, documentId: string, token: string}): Promise<boolean> => {
+        try {
+            const response = await fetch(`${this.baseUrl}/threads/${threadId}/documents/${documentId}`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            if (!response.ok) {
+                throw new Error(`Error extracting document: ${response.statusText}`);
+            }
+            return true;
+        } catch (error) {
+            console.error('Failed to extract document:', error);
+            return false;
+        }
+    };
+
+    public getDocumentExtractAsync = async ({threadId, documentId, token}: {threadId: string, documentId: string, token: string}): Promise<string> => {
+        try {
+            const response = await fetch(`${this.baseUrl}/threads/${threadId}/documents/${documentId}/extract`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            if (!response.ok) {
+                throw new Error(`Error fetching document extract: ${response.statusText}`);
+            }
+           
+            const extractText = await response.text();
+            return extractText;
+        } catch (error) {
+            console.error('Failed to fetch document extract:', error);
+            throw error;
+        }
+    };
 }

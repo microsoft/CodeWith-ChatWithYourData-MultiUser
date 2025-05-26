@@ -16,7 +16,7 @@ try {
     }
 
     # Change to the dist directory
-    cd .\bin\Release\net8.0\publish
+    cd .\bin\Release\net9.0\publish
 
     # Compress the build output
     Compress-Archive -Path * -DestinationPath app.zip -Force

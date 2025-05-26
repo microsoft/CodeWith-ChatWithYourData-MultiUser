@@ -2,11 +2,10 @@ import { makeStyles, tokens, TabList, Tab } from '@fluentui/react-components';
 
 const useClasses = makeStyles({
     header: {
-        height: "48px",
         display: "flex",
         flexDirection: 'column',
-        paddingLeft: tokens.spacingVerticalM,
-        paddingRight: tokens.spacingVerticalM,
+        paddingLeft: tokens.spacingHorizontalM, // use horizontal token explicitly
+        paddingRight: tokens.spacingHorizontalM, // use horizontal token explicitly
         justifyContent: "center"
     }
 });

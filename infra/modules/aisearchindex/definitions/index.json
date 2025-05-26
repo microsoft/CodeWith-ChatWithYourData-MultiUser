@@ -37,6 +37,17 @@
             "key": false
         },
         {
+            "name": "extract",
+            "type": "Edm.String",
+            "searchable": true,
+            "filterable": false,
+            "retrievable": true,
+            "stored": true,
+            "sortable": false,
+            "facetable": false,
+            "key": false
+        },
+        {
             "name": "title",
             "type": "Edm.String",
             "searchable": true,
@@ -79,7 +90,7 @@
             "sortable": false,
             "facetable": false,
             "key": false,
-            "dimensions": 1536,
+            "dimensions": 3072,
             "vectorSearchProfile": "{INDEX_NAME}-text-profile"
         },
         {

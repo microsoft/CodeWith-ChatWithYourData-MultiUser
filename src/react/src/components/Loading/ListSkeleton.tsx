@@ -13,7 +13,7 @@ export function ListSkeleton() {
     const classes = useClasses();
 
     return (
-        <Skeleton aria-label="Loading Content">
+        <Skeleton aria-label="Loading..">
             <SkeletonItem size={32} shape="rectangle" className={classes.skeletonItem}/>
             <SkeletonItem size={32} shape="rectangle" className={classes.skeletonItem}/>
             <SkeletonItem size={32} shape="rectangle" className={classes.skeletonItem}/>

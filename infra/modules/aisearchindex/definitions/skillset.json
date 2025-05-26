@@ -30,7 +30,7 @@
             "context": "/document/pages/*",
             "resourceUri": "{AZURE_OPENAI_RESOURCE_URI}",
             "deploymentId": "{INDEXER_EMBEDDING_MODEL_ID}",
-            "dimensions": 1536,
+            "dimensions": 3072,
             "modelName": "{EMBEDDING_MODEL_NAME}",
             "inputs": [
                 {
