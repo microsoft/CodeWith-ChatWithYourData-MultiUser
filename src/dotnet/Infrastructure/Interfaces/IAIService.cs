@@ -23,8 +23,7 @@ namespace Infrastructure.Interfaces
         Task<CompletionResponse> GetChatCompletion(ChatHistory history, CompletionType completionType);
         Task<string> ExtractDocument(List<IndexDoc> searchResults);
         IAsyncEnumerable<StreamingChatMessageContent> GetChatCompletionStreaming(ChatHistory history);
-        IAsyncEnumerable<StreamingChatMessageContent> GetCompliancyResponseStreamingViaCompletionAsync(string threadId, List<IndexDoc> documents, CancellationToken cancellationToken = default);
-      //  IAsyncEnumerable<AgentChatResponse> GetCompliancyResponseStreamingViaAgentsAsync(string threadId, string extractedText, CancellationToken cancellationToken = default);
+        IAsyncEnumerable<StreamingChatMessageContent> GetCompliancyResponseStreamingViaCompletionAsync(string threadId, List<IndexDoc> documents, string guideLine, CancellationToken cancellationToken = default);
         Task IsHealthyAsync();
     }
 }

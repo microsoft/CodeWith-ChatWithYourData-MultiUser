@@ -12,21 +12,21 @@ using System.Threading.Tasks;
 
 namespace Infrastructure.Implementations.SemanticKernel.Agents
 {
-    public class IncoseAgent
+    public class GuideLineAgent
     {
-        public ChatCompletionAgent CreateAgent(Kernel kernel, string agentName)
+        public ChatCompletionAgent CreateAgent(Kernel kernel, string agentName, string guidelineName)
         {
             // Clone kernel instance to allow for agent specific plug-in definition
             Kernel agentKernel = kernel.Clone();
 
-            if (!agentKernel.Plugins.Contains("get_incose_rules"))
+            if (!agentKernel.Plugins.Contains($"get_{guidelineName}_rules"))
             {
-                agentKernel.Plugins.AddFromType<IncoseGuideLinesTool>("get_incose_rules");
+                agentKernel.Plugins.AddFromType<IncoseGuideLinesTool>($"get_{guidelineName}_rules");
             }
 
             string instruction = $"""
-                1.	Fetch INCOSE Rules:
-                •	Use the get_incose_rules function to retrieve the INCOSE ruleset for requirements validation.
+                1.	Fetch {guidelineName} Rules:
+                •	Use the get_{guidelineName}_rules function to retrieve the {guidelineName} ruleset for requirements validation.
                 """;
 
             return
@@ -34,7 +34,7 @@ namespace Infrastructure.Implementations.SemanticKernel.Agents
                 {
                     Name = agentName,
                     Instructions = instruction,
-                    Description = "Agent responsible for fetching the INCODE guidelines and the template to be used to do the validation.",
+                    Description = "Agent responsible for fetching guidelines to do the validation.",
                     Kernel = agentKernel,
 
                     Arguments = new KernelArguments(
@@ -42,7 +42,7 @@ namespace Infrastructure.Implementations.SemanticKernel.Agents
                         {
                             //ResponseFormat = typeof(GuideLines),
                             FunctionChoiceBehavior = FunctionChoiceBehavior.Required(),
-                            ServiceId = "completion",
+                            ServiceId = "small",
                         })
                 };
         }

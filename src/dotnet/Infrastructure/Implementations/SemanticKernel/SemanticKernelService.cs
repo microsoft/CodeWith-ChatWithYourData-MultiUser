@@ -335,20 +335,20 @@ namespace Infrastructure.Implementations.SemanticKernel
             return response.Content;
         }
 
-        public async IAsyncEnumerable<StreamingChatMessageContent> GetCompliancyResponseStreamingViaCompletionAsync(string threadId, List<IndexDoc> documents, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        public async IAsyncEnumerable<StreamingChatMessageContent> GetCompliancyResponseStreamingViaCompletionAsync(string threadId, List<IndexDoc> documents, string guideLine, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             ChatHistory history = new ChatHistory();
             ChatHistoryAgentThread agentThread = new(history);
 
-            ChatCompletionAgent incoseAgent = new IncoseAgent().CreateAgent(_kernel, "incoseagent");
+            ChatCompletionAgent incoseAgent = new GuideLineAgent().CreateAgent(_kernel, "guidelineagent", guideLine);
             ChatCompletionAgent extractAgent = new ExtractAgent().CreateAgent(_kernel, "extractagent", threadId, documents);
-            ChatCompletionAgent validationAgent = new ValidationAgent().CreateAgent(_kernel, "validationagent", "incose");
+            ChatCompletionAgent validationAgent = new ValidationAgent().CreateAgent(_kernel, "validationagent", guideLine);
 
             string input = string.Empty;
             await foreach (var response in ProcessAgentStreamingResponsesAsync(incoseAgent, input, agentThread, cancellationToken))
                 yield return response;
 
-            string guideLines = agentThread.ChatHistory.Where(x => x.AuthorName == "incoseagent" && x.Role == AuthorRole.Tool).LastOrDefault()?.Content ?? string.Empty;
+            string guideLines = agentThread.ChatHistory.Where(x => x.AuthorName == "guidelineagent" && x.Role == AuthorRole.Tool).LastOrDefault()?.Content ?? string.Empty;
             
             await foreach (var response in ProcessAgentStreamingResponsesAsync(extractAgent, input, agentThread, cancellationToken))
                 yield return response;

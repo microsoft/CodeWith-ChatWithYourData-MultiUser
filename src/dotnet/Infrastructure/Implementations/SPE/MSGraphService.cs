@@ -83,7 +83,7 @@ namespace Infrastructure.Implementations.SPE
 
                 // Call the Graph API to create the container
                 var createdContainer = await _graphServiceClient.Storage.FileStorage.Containers
-                    .PostAsync(container, cancellationToken:cancellationToken);
+                    .PostAsync(container, cancellationToken: cancellationToken);
 
                 if (createdContainer == null)
                 {
@@ -105,8 +105,14 @@ namespace Infrastructure.Implementations.SPE
 
                 // todo, get this working with the graphserviceclient
                 // await AddCustomPropertyToContainer(container.Id, "threadId", threadId);
-                await UpdateContainerCustomPropertyAsync(createdContainer.Id, "threadId", threadId, cancellationToken);
+                try
+                {
+                    await UpdateContainerCustomPropertyAsync(createdContainer.Id, "threadId", threadId, cancellationToken);
+                }
+                catch (Microsoft.Graph.Models.ODataErrors.ODataError ex){
+                    _logger.LogWarning(ex, "Error applying property: {Message}", ex.Message);
 
+                }
                 return createdContainer;
             }
             catch (Exception ex)

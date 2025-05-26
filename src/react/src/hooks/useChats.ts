@@ -53,15 +53,18 @@ export const useChats = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['chats'] });
         }
-    });
-
-    const selectChat = (chatId?: string) => {
+    });    const selectChat = (chatId?: string) => {
+        // Log the change to help debug issues
+        LoggingService.log(`Selecting chat: ${chatId || 'none'}`);
+        
         if (chatId) {
+            // When selecting a new chat, force query invalidation to ensure fresh data
+            queryClient.invalidateQueries({ queryKey: ['chat', chatId] });
             setSelectedChatId(chatId);
         } else {
             setSelectedChatId(undefined);
         }
-    };    // Find the selected chat from the chats array using selectedChatId
+    };// Find the selected chat from the chats array using selectedChatId
     const selectedChat = chats?.find(chat => chat.id === selectedChatId);
     
     return {

@@ -50,7 +50,7 @@ namespace Infrastructure.Implementations.SemanticKernel.Agents
                     Arguments = new KernelArguments(
                         new OpenAIPromptExecutionSettings()
                         {
-                            ServiceId = "completion",
+                            ServiceId = "reasoning",
                         })
                 };
         }

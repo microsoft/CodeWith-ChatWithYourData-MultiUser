@@ -1,11 +1,10 @@
 import { Field, makeStyles, ProgressBar, tokens, Button, Badge, Divider, Tooltip } from '@fluentui/react-components';
 import { Stack, Text } from '@fluentui/react'
 import { IChatMessage } from '../../models/ChatMessage';
-import React from 'react';
+import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useTextStyles } from '../../styles/sharedStyles';
-import { BookInformation20Regular, CoinMultiple16Color, CoinStack16Filled, CoinStack16Regular, CurrencyDollarEuro16Regular, Info12Regular, TagLockAccent16Filled } from '@fluentui/react-icons';
+import { Info12Regular, Code20Regular, Copy16Regular, CheckmarkCircle16Regular } from '@fluentui/react-icons';
 
 const useClasses = makeStyles({
     userContainer: {
@@ -154,12 +153,44 @@ const useClasses = makeStyles({
         display: 'flex',
         flexWrap: 'wrap',
         gap: tokens.spacingHorizontalXS,
-    }
+    },    jsonContainer: {
+        backgroundColor: tokens.colorNeutralBackground3,
+        padding: '16px',
+        borderRadius: tokens.borderRadiusMedium,
+        overflowX: 'auto',
+        fontFamily: 'monospace',
+        whiteSpace: 'pre',
+        fontSize: tokens.fontSizeBase200,
+        border: `1px solid ${tokens.colorNeutralStroke1}`,
+        margin: '8px 0',
+        boxShadow: tokens.shadow4,
+        position: 'relative',
+        transition: 'all 0.2s ease',
+        '&:hover': {
+            boxShadow: tokens.shadow8,
+        }
+    },
+    jsonHeader: {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: '12px',
+        fontWeight: tokens.fontWeightSemibold,
+        color: tokens.colorBrandForeground1,
+        borderBottom: `1px solid ${tokens.colorNeutralStroke1}`,
+        paddingBottom: '8px',
+    },
+    jsonContent: {
+        maxHeight: '500px',
+        overflowY: 'auto',
+        lineHeight: '1.5',
+        paddingRight: '4px',
+    },
 });
 
 // Custom renderer components for Markdown with improved table rendering
 const MarkdownComponents = {
-    table: (props: any) => (
+    table: (props: React.PropsWithChildren) => (
         <div style={{ overflowX: 'auto', width: '100%', marginBottom: '16px' }}>
             <table style={{ 
                 borderCollapse: 'collapse', 
@@ -171,17 +202,17 @@ const MarkdownComponents = {
             </table>
         </div>
     ),
-    thead: (props: any) => (
+    thead: (props: React.PropsWithChildren) => (
         <thead style={{ backgroundColor: '#f0f0f0' }}>
             {props.children}
         </thead>
     ),
-    tr: (props: any) => (
+    tr: (props: React.PropsWithChildren) => (
         <tr style={{ borderBottom: '1px solid #ddd' }}>
             {props.children}
         </tr>
     ),
-    th: (props: any) => (
+    th: (props: React.PropsWithChildren) => (
         <th style={{ 
             padding: '10px 8px', 
             textAlign: 'left', 
@@ -194,7 +225,7 @@ const MarkdownComponents = {
             {props.children}
         </th>
     ),
-    td: (props: any) => (
+    td: (props: React.PropsWithChildren) => (
         <td style={{ 
             padding: '8px', 
             textAlign: 'left', 
@@ -211,9 +242,109 @@ type messageProps = {
     onFollowUp: (question: string) => void;
 }
 
+/**
+ * Checks if a string is valid JSON
+ */
+const isJSON = (text: string): boolean => {
+    if (!text) return false;
+    text = text.trim();
+    
+    // First, do a quick check of starting/ending characters
+    if (!(text.startsWith('{') && text.endsWith('}')) && 
+        !(text.startsWith('[') && text.endsWith(']'))) {
+        return false;
+    }
+    
+    // Make sure the content looks like real JSON, not just some text in curly braces
+    // Look for common JSON patterns like key-value pairs with quotes
+    const hasKeyValuePattern = /"[^"]+"\s*:/i.test(text);
+    
+    if (!hasKeyValuePattern && text.startsWith('{')) {
+        return false;
+    }
+    
+    try {
+        JSON.parse(text);
+        
+        // Additional check - if the parsed result is an array or object with at least one property
+        // and has a reasonable size, it's likely a JSON that we want to format
+        const parsed = JSON.parse(text);
+        const isObject = typeof parsed === 'object' && parsed !== null;
+        const hasProperties = isObject && Object.keys(parsed).length > 0;
+        const isReasonableSize = text.length > 10 && text.length < 100000; // Avoid formatting tiny or huge JSON
+        
+        return isObject && hasProperties && isReasonableSize;
+    } catch {
+        return false;
+    }
+};
+
+/**
+ * Format JSON with syntax highlighting using HTML
+ */
+const syntaxHighlightJSON = (json: string): React.ReactNode => {
+    if (!json) return null;
+    
+    try {
+        // Parse and re-stringify for consistent formatting
+        const obj = JSON.parse(json);
+        const formattedJson = JSON.stringify(obj, null, 2);
+        
+        // Replace JSON syntax with styled spans
+        const highlighted = formattedJson
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g, 
+                (match) => {
+                    if (/^"/.test(match)) {
+                        if (/:$/.test(match)) {
+                            // It's a JSON key
+                            // Remove the colon from the end for the key styling
+                            match = match.replace(/:$/, '');
+                            return `<span style="color: #0078d4; font-weight: 500;">${match}</span>:`;
+                        }
+                        // It's a string
+                        return `<span style="color: #107c10;">${match}</span>`;
+                    } else if (/true|false/.test(match)) {
+                        // Boolean value
+                        return `<span style="color: #8661c5;">${match}</span>`;
+                    } else if (/null/.test(match)) {
+                        // Null value
+                        return `<span style="color: #5c5c5c; font-style: italic;">${match}</span>`;
+                    } else {
+                        // It's a number
+                        return `<span style="color: #d83b01;">${match}</span>`;
+                    }
+                }
+            );
+
+        return <div dangerouslySetInnerHTML={{ __html: highlighted }} />;
+    } catch {
+        // If there's an error, return the original JSON as plaintext
+        return <pre>{json}</pre>;
+    }
+};
+
 export function Message({ message, onFollowUp }: messageProps) {
     const classes = useClasses();
-    const textStyles = useTextStyles();
+    const [copied, setCopied] = useState(false);
+    
+    const handleCopyJSON = () => {
+        if (message.content) {
+            try {
+                const jsonToCopy = JSON.parse(message.content);
+                navigator.clipboard.writeText(JSON.stringify(jsonToCopy, null, 2));
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+            } catch {
+                // Fallback to copying raw content if parsing fails
+                navigator.clipboard.writeText(message.content);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+            }
+        }
+    };
 
     const formatCitationLabel = (index: number) => {
         return `[${index + 1}]`;
@@ -269,14 +400,37 @@ export function Message({ message, onFollowUp }: messageProps) {
                                 </Tooltip></>
                             )}
                         </div>
-                       
-                        <div className={classes.markdownContent}>
-                            <ReactMarkdown 
-                                remarkPlugins={[remarkGfm]} 
-                                components={MarkdownComponents}
-                            >
-                                {message.content}
-                            </ReactMarkdown>
+                         <div className={classes.markdownContent}>                            {isJSON(message.content) ? (
+                                <div className={classes.jsonContainer}>
+                                    <div className={classes.jsonHeader}>
+                                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                                            <Code20Regular style={{ marginRight: '8px', verticalAlign: 'middle' }} />
+                                            <span>JSON Response</span>
+                                        </div>
+                                        <div style={{ marginLeft: 'auto' }}>
+                                            <Button 
+                                                appearance="subtle" 
+                                                icon={copied ? <CheckmarkCircle16Regular /> : <Copy16Regular />}
+                                                size="small"
+                                                onClick={handleCopyJSON}
+                                                title="Copy JSON to clipboard"
+                                            >
+                                                {copied ? "Copied!" : "Copy"}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                    <div className={classes.jsonContent}>
+                                        {syntaxHighlightJSON(message.content)}
+                                    </div>
+                                </div>
+                            ) : (
+                                <ReactMarkdown 
+                                    remarkPlugins={[remarkGfm]} 
+                                    components={MarkdownComponents}
+                                >
+                                    {message.content}
+                                </ReactMarkdown>
+                            )}
                         </div>
                         {!!message.context?.citations?.length && (
                             <div className={classes.citationsContainer}>

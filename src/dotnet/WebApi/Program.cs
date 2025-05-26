@@ -24,7 +24,9 @@ using Microsoft.SemanticKernel.ChatCompletion;
 using System.ComponentModel.Design;
 using System.Text.Json;
 using WebApi.Extensions;
+using WebApi.Filters;
 using WebApi.HealthChecks;
+using WebApi.Services;
 
 namespace WebApi
 {
@@ -105,6 +107,7 @@ namespace WebApi
             // Setting up the Semantic Kernel and AI Search
             string? endpoint = builder.Configuration["OpenAI:EndPoint"];
             string? completionModel = builder.Configuration["OpenAI:CompletionModel"];
+            string? smallModel = builder.Configuration["OpenAI:SmallModel"];
             string? reasoningModel = builder.Configuration["OpenAI:ReasoningModel"];
             string? embeddingModel = builder.Configuration["OpenAI:EmbeddingModel"];
 
@@ -126,6 +129,13 @@ namespace WebApi
                     serviceId: "completion", // this is the service id for the formatting of the document, using gpt4o
                     httpClient: httpClient // this is the long timeout client we created above
                 );
+            builder.Services.AddKernel().AddAzureOpenAIChatCompletion(
+                   deploymentName: smallModel!,
+                   endpoint: endpoint!,
+                   azureCredential,
+                   serviceId: "small", // this is the service id for the formatting of the document, using gpt4o
+                   httpClient: httpClient // this is the long timeout client we created above
+               );
 
             builder.AddKernelMemory(azureCredential);            
             builder.Services.AddSingleton<ISearchService, AISearchService>();
@@ -153,6 +163,11 @@ namespace WebApi
                 options.MultipartBodyLengthLimit = 100 * 1024 * 1024; // 100 MB
             });
 
+            // Add the services to be used by the controllers
+            builder.Services.AddScoped<AdminService>();
+            builder.Services.AddScoped<DocumentService>();
+            builder.Services.AddScoped<ThreadService>();
+            builder.Services.AddSingleton<UserIdValidationFilter>();
             builder.Services.AddControllers();
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();

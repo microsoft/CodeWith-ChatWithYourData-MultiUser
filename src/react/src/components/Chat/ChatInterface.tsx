@@ -1,6 +1,6 @@
 import { makeStyles, Toast, Toaster, ToastIntent, ToastTitle, tokens, useId, useToastController, Dialog, DialogTrigger, DialogSurface, Button, DialogBody, DialogTitle, DialogContent, DialogActions  } from '@fluentui/react-components';
 import { useChatMessages } from '../../hooks/useChatMessages';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import { DocumentViewer } from '../Documents/DocumentViewer';
@@ -78,7 +78,7 @@ export function ChatInterface({ selectedChatId }: chatInterfaceType) {
     const classes = useClasses();
     const containerClasses = useContainerStyles();
     
-    const { messages, sendMessageStream, sendCompliancyMessageStream, chatPending, deleteMessages, heartbeatStatus } = useChatMessages(selectedChatId);
+    const { messages, sendMessageStream, sendCompliancyMessageStream, chatPending, deleteMessages, heartbeatStatus, forceRefreshMessages } = useChatMessages(selectedChatId);
     const { documents } = useChatDocuments(selectedChatId);
     const { settings } = useSettings();
     const [userInput, setUserInput] = useState<string>("");
@@ -87,6 +87,14 @@ export function ChatInterface({ selectedChatId }: chatInterfaceType) {
     const { dispatchToast } = useToastController(toasterId);
     const [isDialogVisible, setIsDialogVisible] = useState(false);
     const chatManager = useChats();    
+
+    useEffect(() => {
+        if (selectedChatId) {
+            LoggingService.log(`Selected chat changed to ${selectedChatId}, forcing refresh`);
+            forceRefreshMessages();
+        }
+    }, [selectedChatId, forceRefreshMessages]);
+
     const handleCreateNewChat = async () => {
         try {
             // Simply call addChat without trying to capture and use the return value

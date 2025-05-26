@@ -1,15 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { ChatService } from "../services/ChatService";
 import { IChatMessage } from "../models/ChatMessage";
 import { useAuth } from "./useAuth";
-import readNDJSONStream from "ndjson-readablestream";
 import LoggingService from "../services/LoggingService";
 import { IChatMessageRequest } from "../models/ChatMessageRequest";
+import { useQueryClient } from "@tanstack/react-query";
 
 export const useChatMessages = (chatId: string | undefined) => {
     const chatService = new ChatService();
-    const { userId, accessToken } = useAuth();   
+    const { userId, accessToken, refreshToken } = useAuth();    const queryClient = useQueryClient();
 
     const [messages, setMessages] = useState<IChatMessage[]>([]);
     const [heartbeatStatus, setHeartbeatStatus] = useState<{
@@ -18,25 +18,84 @@ export const useChatMessages = (chatId: string | undefined) => {
         timestamp: string;
         isActive: boolean;
     } | null>(null);
-
-    const { isPending: chatPending, error: chatError, data: messagesResult } = useQuery({
-        queryKey: ['chat', chatId],
-        queryFn: async () => chatService.getChatMessagesAsync({ chatId: chatId || "", token: accessToken }),
-        enabled: userId != undefined && accessToken != undefined && accessToken != "" && chatId != "" && chatId != undefined,
-        staleTime: 10000
-    });
-
-    useEffect(() => {
-        if (messagesResult) {
-            setMessages(messagesResult.filter(message => message.role !== 'system'));
-        }
-    }, [messagesResult]);
     
-    // Clear messages when chatId changes
+    // Function to force refresh messages for a specific chat
+    const forceRefreshMessages = useCallback(() => {
+        if (chatId) {
+            LoggingService.log(`Forcing refresh of messages for chat ${chatId}`);
+            queryClient.invalidateQueries({ queryKey: ['chat', chatId] });
+        }    }, [chatId, queryClient]);const { isPending: chatPending, error: chatError, data: messagesResult } = useQuery({
+        queryKey: ['chat', chatId],
+        queryFn: async () => {
+            try {
+                const result = await chatService.getChatMessagesAsync({ chatId: chatId || "", token: accessToken });
+                LoggingService.log(`Query succeeded for chat ${chatId}, received ${result.length} messages`);
+                return result;
+            } catch (error) {
+                // Handle auth errors by attempting token refresh
+                await handlePossibleAuthError(error);
+                // Still need to throw to let React Query handle the error state
+                throw error;
+            }
+        },
+        enabled: userId != undefined && accessToken != undefined && accessToken != "" && chatId != "" && chatId != undefined,
+        staleTime: 10000,
+        // Ensure we're always getting fresh data when switching chats
+        refetchOnMount: 'always',
+        // Retry failed queries to handle token refresh
+        retry: 2,
+        retryDelay: 1000
+    });    // Combined effect to handle both chatId changes and messagesResult updates
     useEffect(() => {
-        // Reset messages when chat changes
-        setMessages([]);
-    }, [chatId]);
+        // When chatId changes, immediately clear messages
+        if (!chatId) {
+            setMessages([]);
+            return;
+        }
+        
+        // When messagesResult is available, update messages
+        // This will run both when chatId changes (causing a new query)
+        // and when messagesResult updates from the query
+        if (messagesResult) {
+            LoggingService.log(`Setting ${messagesResult.length} messages for chat ${chatId}`);
+            
+            // Check if messages are empty when they shouldn't be (possible caching issue)
+            if (messagesResult.length === 0 && chatId) {
+                LoggingService.warn(`Received empty messages for chat ${chatId}, may need to force refresh`);
+                // Try a delayed refresh if we get empty results unexpectedly
+                // This helps in cases where the cache might be stale
+                setTimeout(() => forceRefreshMessages(), 500);
+            }
+            
+            setMessages(messagesResult.filter(message => message.role !== 'system'));
+        } else if (chatId) {
+            // If we have a chatId but no messagesResult yet, clear messages
+            // This creates a nice loading state
+            LoggingService.log(`Clearing messages while loading chat ${chatId}`);
+            setMessages([]);
+        }
+    }, [chatId, messagesResult, forceRefreshMessages]);// Helper function to handle possible auth errors
+    const handlePossibleAuthError = async (error: unknown) => {
+        // Check if this is an auth error (401 Unauthorized)
+        const errorObj = error as { message?: string; status?: number; response?: { status?: number } };
+        
+        if (
+            (errorObj.message && errorObj.message.includes('401')) || 
+            errorObj.status === 401 || 
+            (errorObj.response && errorObj.response.status === 401)
+        ) {
+            LoggingService.warn('Auth error detected, attempting token refresh');
+            
+            // Try to refresh the token
+            refreshToken();
+            
+            // Invalidate relevant queries to force refetching with the new token
+            setTimeout(() => {
+                queryClient.invalidateQueries({ queryKey: ['chat', chatId] });
+                LoggingService.log('Invalidated queries after token refresh');
+            }, 1000); // Small delay to ensure token refresh has completed
+        }
+    };
 
     // Existing sendMessage implementation
     const sendMessage = async ({ message }: { message: IChatMessageRequest }) => {
@@ -57,94 +116,100 @@ export const useChatMessages = (chatId: string | undefined) => {
             return updated;
         });
 
-        const response = await chatService.sendMessageAsync({ chatId: chatId, message: message, token: accessToken });
-        
-        if (!response || !response.body) {
-            return false;
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let jsonBuffer = '';
-        
-        while (true) {
-            const { value, done } = await reader.read();
-            if (done) {
-                break;
+        try {
+            const response = await chatService.sendMessageAsync({ chatId: chatId, message: message, token: accessToken });
+            
+            if (!response || !response.body) {
+                return false;
             }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let jsonBuffer = '';
             
-            const decodedChunk = decoder.decode(value);
-            jsonBuffer += decodedChunk;
-            
-            try {
-                // Try to parse complete JSON objects
-                const lines = jsonBuffer.split('\n').filter(line => line.trim() !== '');
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) {
+                    break;
+                }
                 
-                // Process complete lines
-                for (let i = 0; i < lines.length - 1; i++) {
-                    try {
-                        const chunk = JSON.parse(lines[i]);
-                        if (chunk.content) {
-                            result += chunk.content;
-                            setMessages(prev => {
-                                const updated = [...prev];
-                                updated[updated.length - 1] = {
-                                    role: 'assistant',
-                                    content: result,
-                                    context: chunk.context,
-                                    id: chunk.id,
-                                    created: chunk.created
-                                };
-                                return updated;
-                            });
+                const decodedChunk = decoder.decode(value);
+                jsonBuffer += decodedChunk;
+                
+                try {
+                    // Try to parse complete JSON objects
+                    const lines = jsonBuffer.split('\n').filter(line => line.trim() !== '');
+                    
+                    // Process complete lines
+                    for (let i = 0; i < lines.length - 1; i++) {
+                        try {
+                            const chunk = JSON.parse(lines[i]);
+                            if (chunk.content) {
+                                result += chunk.content;
+                                setMessages(prev => {
+                                    const updated = [...prev];
+                                    updated[updated.length - 1] = {
+                                        role: 'assistant',
+                                        content: result,
+                                        context: chunk.context,
+                                        id: chunk.id,
+                                        created: chunk.created
+                                    };
+                                    return updated;
+                                });
+                            }
+                        } catch (parseError) {
+                            console.error('Error parsing JSON line:', parseError);
                         }
-                    } catch (parseError) {
-                        console.error('Error parsing JSON line:', parseError);
                     }
+                    
+                    // Keep the last potentially incomplete line in the buffer
+                    jsonBuffer = lines[lines.length - 1] || '';
+                } catch (error) {
+                    console.error('Error processing chunks:', error);
+                    // Continue to next chunk, don't break the stream processing
                 }
-                
-                // Keep the last potentially incomplete line in the buffer
-                jsonBuffer = lines[lines.length - 1] || '';
-            } catch (error) {
-                console.error('Error processing chunks:', error);
-                // Continue to next chunk, don't break the stream processing
             }
-        }
-        
-        // Try to parse any remaining data in the buffer
-        if (jsonBuffer.trim()) {
-            try {
-                const chunk = JSON.parse(jsonBuffer);
-                if (chunk.content) {
-                    result += chunk.content;
-                    setMessages(prev => {
-                        const updated = [...prev];
-                        updated[updated.length - 1] = {
-                            role: 'assistant',
-                            content: result,
-                            context: chunk.context,
-                            id: chunk.id,
-                            created: chunk.created
-                        };
-                        return updated;
-                    });
+            
+            // Try to parse any remaining data in the buffer
+            if (jsonBuffer.trim()) {
+                try {
+                    const chunk = JSON.parse(jsonBuffer);
+                    if (chunk.content) {
+                        result += chunk.content;
+                        setMessages(prev => {
+                            const updated = [...prev];
+                            updated[updated.length - 1] = {
+                                role: 'assistant',
+                                content: result,
+                                context: chunk.context,
+                                id: chunk.id,
+                                created: chunk.created
+                            };
+                            return updated;
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error parsing final JSON chunk:', error);
                 }
-            } catch (error) {
-                console.error('Error parsing final JSON chunk:', error);
             }
-        }
 
-        // If message is still empty, remove the two added messages
-        if (result === '') {
-            setMessages(prev => {
-                const updated = [...prev];
-                updated.pop();
-                updated.pop();
-                return updated;
-            });
+            // If message is still empty, remove the two added messages
+            if (result === '') {
+                setMessages(prev => {
+                    const updated = [...prev];
+                    updated.pop();
+                    updated.pop();
+                    return updated;
+                });
+                return false;
+            }
+            return true;
+        } catch (error) {
+            console.error('Error sending message:', error);
+            handlePossibleAuthError(error);
             return false;
         }
-        return true;
     };    // Method to handle message streaming with SSE format
     const sendMessageStream = async ({ message }: { message: IChatMessageRequest }) => {
         if (!chatId) return false; 
@@ -254,10 +319,7 @@ export const useChatMessages = (chatId: string | undefined) => {
                                             created: eventData.timestamp || new Date().toISOString()
                                         };
                                         return updated;
-                                    });
-                                }
-                            }                            
-                            catch (jsonError) {
+                                    });                            }                            }                              catch (_) {
                                 // This might be a multi-line SSE message that has been split
                                 LoggingService.warn('Possible multi-line SSE data, continuing to collect data');
                                 // Just skip this line - it will be handled when we receive more data
@@ -290,6 +352,7 @@ export const useChatMessages = (chatId: string | undefined) => {
             return true;
         } catch (error) {
             console.error('Error sending message:', error);
+            handlePossibleAuthError(error);
             // Remove the messages if there was an error
             setMessages(prev => prev.slice(0, -2));
             return false;
@@ -357,9 +420,8 @@ export const useChatMessages = (chatId: string | undefined) => {
                                         // Otherwise append to existing content
                                         result += eventData.content;
                                     }
-                                    
-                                    // Check if this is the final message containing followupQuestions
-                                    let contextData = eventData.context || {};
+                                      // Check if this is the final message containing followupQuestions
+                                    const contextData = eventData.context || {};
                                     
                                     // If eventData has followupQuestions and final=true, add to context                                    
                                     if (eventData.final === true && eventData.followupQuestions) {
@@ -431,9 +493,7 @@ export const useChatMessages = (chatId: string | undefined) => {
                                         agentName: eventData.agentName || 'System',
                                         timestamp: eventData.timestamp || new Date().toISOString(),
                                         isActive: true
-                                    });
-                                }
-                            } catch (jsonError) {
+                                    });                                }                            } catch (_) {
                                 // This might be a multi-line SSE message that has been split
                                 // Add this chunk to a buffer and try to parse it later
                                 console.warn('Possible multi-line SSE data, continuing to collect data');
@@ -495,6 +555,7 @@ export const useChatMessages = (chatId: string | undefined) => {
         sendMessage,
         sendMessageStream,
         sendCompliancyMessageStream,
-        deleteMessages  
+        deleteMessages,
+        forceRefreshMessages  
     };
 };
